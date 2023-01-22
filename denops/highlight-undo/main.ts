@@ -1,7 +1,7 @@
 import { delay, Diff, diffChars, diffLines, fn } from "./deps.ts";
 import type { Denops } from "./deps.ts";
 
-// NOTE: Change get from denops
+// TODO: Change get from denops
 const CHANGE_CHAR_COUNT_THRESHOLD = 1500;
 const CHANGE_LINE_COUNT_THRESHOLD = 50;
 
