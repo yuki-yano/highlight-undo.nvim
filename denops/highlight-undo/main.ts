@@ -1,7 +1,8 @@
-import { delay, diffChars, diffLines, fn } from "./deps.ts";
+import { delay, Diff, diffChars, diffLines, fn } from "./deps.ts";
 import type { Denops } from "./deps.ts";
 
 // NOTE: Change get from denops
+const CHANGE_CHAR_COUNT_THRESHOLD = 1500;
 const CHANGE_LINE_COUNT_THRESHOLD = 50;
 
 let nameSpace: number;
@@ -240,10 +241,14 @@ export const main = async (denops: Denops): Promise<void> => {
         return;
       }
 
+      const changeCharCount = Math.abs(preCode.length - postCode.length);
       const changeLineCount = Math.abs(
         preCode.split("\n").length - postCode.split("\n").length
       );
-      if (changeLineCount > CHANGE_LINE_COUNT_THRESHOLD) {
+      if (
+        changeCharCount > CHANGE_CHAR_COUNT_THRESHOLD ||
+        changeLineCount > CHANGE_LINE_COUNT_THRESHOLD
+      ) {
         denops.cmd(command as string);
         return;
       }
