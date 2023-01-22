@@ -91,7 +91,6 @@ const highlight = async (
     )
   );
 
-  await denops.redraw();
   await delay(200);
   await denops.call(
     "luaeval",
