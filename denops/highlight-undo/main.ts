@@ -53,9 +53,11 @@ const getPreCodeAndPostCode = async ({
   command: string;
   counterCommand: string;
 }): Promise<void> => {
-  preCode = ((await fn.getline(denops, 1, "$")) as Array<string>).join("\n");
+  preCode =
+    ((await fn.getline(denops, 1, "$")) as Array<string>).join("\n") + "\n";
   await denops.cmd(command as string);
-  postCode = ((await fn.getline(denops, 1, "$")) as Array<string>).join("\n");
+  postCode =
+    ((await fn.getline(denops, 1, "$")) as Array<string>).join("\n") + "\n";
   await denops.cmd(counterCommand as string);
 };
 
@@ -233,7 +235,7 @@ export const main = async (denops: Denops): Promise<void> => {
         counterCommand: counterCommand as string,
       });
     },
-    exec: async (command: unknown, counterCommand: unknown): Promise<void> => {
+    exec: async (command: unknown, _counterCommand: unknown): Promise<void> => {
       if (!(await executeCondition(denops, { command: command as Command }))) {
         return;
       }
@@ -252,11 +254,19 @@ export const main = async (denops: Denops): Promise<void> => {
       const aboveLine = above.count! + 1;
       const removeBelowLine =
         below?.count != null
-          ? preCode.split("\n").length - below!.count!
+          ? // NOTE: Workaround to get line numbers when the end of the file is changed
+            postCode.split("\n").length + below!.count! ===
+            preCode.split("\n").length
+            ? preCode.split("\n").length
+            : preCode.split("\n").length - below!.count!
           : aboveLine;
       const addBelowLine =
         below?.count != null
-          ? postCode.split("\n").length - below!.count!
+          ? // NOTE: Workaround to get line numbers when the end of the file is changed
+            preCode.split("\n").length + below!.count! ===
+            postCode.split("\n").length
+            ? postCode.split("\n").length
+            : postCode.split("\n").length - below!.count!
           : aboveLine;
 
       // Removed
