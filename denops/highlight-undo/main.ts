@@ -119,13 +119,13 @@ const computeRanges = ({
       let lnum = afterCode.substring(0, codeIndex).split("\n").length;
 
       const currentPos = afterCode.substring(0, codeIndex).length;
-      const currentLineStartPos = afterCode
+      const startPosInCurrentLine = afterCode
         .substring(0, codeIndex)
         .lastIndexOf("\n");
 
       // If the change contains line breaks, split each line.
       if (change.value.includes("\n")) {
-        const firstLineStartCol = codeIndex - currentLineStartPos - 1;
+        const firstLineStartCol = codeIndex - startPosInCurrentLine - 1;
 
         let isFirstLine = true;
         for (const text of change.value.split("\n")) {
@@ -150,14 +150,14 @@ const computeRanges = ({
         }
       } else {
         const currentLineText = afterCode.split("\n")[lnum - 1];
-        const start = currentPos - currentLineStartPos - 1;
+        const start = currentPos - startPosInCurrentLine - 1;
         ranges = [
           ...ranges,
           {
             lnum,
             lineText: currentLineText,
             col: {
-              start: currentPos - currentLineStartPos,
+              start: currentPos - startPosInCurrentLine,
               end: start + change.value.length,
             },
             matchText: change.value,
