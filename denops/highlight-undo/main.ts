@@ -1,13 +1,21 @@
 import { delay, Diff, diffChars, diffLines, fn } from "./deps.ts";
 import type { Denops } from "./deps.ts";
 
-// TODO: Change get from denops
-const CHANGE_CHAR_COUNT_THRESHOLD = 1500;
-const CHANGE_LINE_COUNT_THRESHOLD = 50;
-
-let nameSpace: number;
-let preCode = "";
-let postCode = "";
+type Config = {
+  mappings: {
+    undo: string;
+    redo: string;
+  };
+  highlight: {
+    added: string;
+    removed: string;
+  };
+  threshold: {
+    line: number;
+    char: number;
+  };
+  duration: number;
+};
 
 type Command = "undo" | "redo";
 type ChangeType = "added" | "removed";
@@ -29,6 +37,11 @@ type UndoTree = {
     curhead?: number;
   }>;
 };
+
+let config: Config;
+let nameSpace: number;
+let preCode = "";
+let postCode = "";
 
 const executeCondition = async (
   denops: Denops,
@@ -76,7 +89,8 @@ const highlight = async (
     return;
   }
 
-  const highlightGroup = changeType === "added" ? "DiffAdd" : "DiffDelete";
+  const highlightGroup =
+    changeType === "added" ? config.highlight.added : config.highlight.removed;
 
   await Promise.all(
     ranges.map((range) =>
@@ -91,7 +105,7 @@ const highlight = async (
     )
   );
 
-  await delay(200);
+  await delay(config.duration);
   await denops.call(
     "luaeval",
     `vim.api.nvim_buf_clear_namespace(0, ${nameSpace}, 0, -1)`
@@ -221,10 +235,18 @@ export const main = async (denops: Denops): Promise<void> => {
   )) as number;
 
   denops.dispatcher = {
+    setup: async (_config: unknown): Promise<void> => {
+      config = _config as Config;
+      return await Promise.resolve();
+    },
     preExec: async (
       command: unknown,
       counterCommand: unknown
     ): Promise<void> => {
+      if (config == null) {
+        throw new Error("Please call setup() first.");
+      }
+
       if (!(await executeCondition(denops, { command: command as Command }))) {
         return;
       }
@@ -236,6 +258,10 @@ export const main = async (denops: Denops): Promise<void> => {
       });
     },
     exec: async (command: unknown, _counterCommand: unknown): Promise<void> => {
+      if (config == null) {
+        throw new Error("Please call setup() first.");
+      }
+
       if (!(await executeCondition(denops, { command: command as Command }))) {
         return;
       }
@@ -245,8 +271,8 @@ export const main = async (denops: Denops): Promise<void> => {
         preCode.split("\n").length - postCode.split("\n").length
       );
       if (
-        changeCharCount > CHANGE_CHAR_COUNT_THRESHOLD ||
-        changeLineCount > CHANGE_LINE_COUNT_THRESHOLD
+        changeCharCount > config.threshold.char ||
+        changeLineCount > config.threshold.line
       ) {
         denops.cmd(command as string);
         return;

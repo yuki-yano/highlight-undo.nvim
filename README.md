@@ -10,8 +10,34 @@ https://user-images.githubusercontent.com/5423775/213918351-8f75c385-9d87-4efb-9
 
 ## Usage
 
-Call the setup function will map to `u` and `<C-r>`.
+Call the setup function will default map to `u` and `<C-r>`.
 
 ```lua
-require('highlight-undo').setup()
+require('highlight-undo').setup({
+  -- opts
+})
+```
+
+default opts:
+
+```lua
+{
+  -- Mapping keys
+  mappings = {
+    undo = 'u',
+    redo = '<C-r>',
+  },
+  -- Highlight groups applied to added and removed parts during undo
+  highlight = {
+    added = 'DiffAdd',
+    removed = 'DiffDelete',
+  },
+  -- If the amount of change exceeds this amount, the highlight will not be performed.
+  threshold = {
+    line = 50,
+    char = 1500,
+  },
+  -- Duration to highlight(ms)
+  duration = 200,
+}
 ```
