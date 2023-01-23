@@ -27,6 +27,11 @@ default opts:
     undo = 'u',
     redo = '<C-r>',
   },
+  -- Setting to enable highlighting when a diff is added or removed
+  enabled = {
+    added = true,
+    removed = true,
+  },
   -- Highlight groups applied to added and removed parts during undo
   highlight = {
     added = 'DiffAdd',

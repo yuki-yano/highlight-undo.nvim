@@ -6,6 +6,10 @@ type Config = {
     undo: string;
     redo: string;
   };
+  enabled: {
+    added: boolean;
+    removed: boolean;
+  };
   highlight: {
     added: string;
     removed: string;
@@ -45,7 +49,7 @@ let postCode = "";
 
 const executeCondition = async (
   denops: Denops,
-  { command }: { command: Command }
+  { command }: { command: Command },
 ): Promise<boolean> => {
   const undoTree = (await fn.undotree(denops)) as UndoTree;
   if (
@@ -67,11 +71,9 @@ const getPreCodeAndPostCode = async ({
   command: string;
   counterCommand: string;
 }): Promise<void> => {
-  preCode =
-    ((await fn.getline(denops, 1, "$")) as Array<string>).join("\n") + "\n";
+  preCode = ((await fn.getline(denops, 1, "$")) as Array<string>).join("\n") + "\n";
   await denops.cmd(command as string);
-  postCode =
-    ((await fn.getline(denops, 1, "$")) as Array<string>).join("\n") + "\n";
+  postCode = ((await fn.getline(denops, 1, "$")) as Array<string>).join("\n") + "\n";
   await denops.cmd(counterCommand as string);
 };
 
@@ -83,32 +85,29 @@ const highlight = async (
   }: {
     ranges: ReadonlyArray<Range>;
     changeType: ChangeType;
-  }
+  },
 ) => {
   if (ranges.length === 0) {
     return;
   }
 
-  const highlightGroup =
-    changeType === "added" ? config.highlight.added : config.highlight.removed;
+  const highlightGroup = changeType === "added" ? config.highlight.added : config.highlight.removed;
 
   await Promise.all(
     ranges.map((range) =>
       denops.call(
         "luaeval",
-        `vim.highlight.range(0, ${nameSpace}, '${highlightGroup}', { ${
-          range.lnum - 1
-        }, ${range.col.start - 1 < 0 ? 0 : range.col.start - 1} }, { ${
-          range.lnum - 1
-        }, ${range.col.end} })`
+        `vim.highlight.range(0, ${nameSpace}, '${highlightGroup}', { ${range.lnum - 1}, ${
+          range.col.start - 1 < 0 ? 0 : range.col.start - 1
+        } }, { ${range.lnum - 1}, ${range.col.end} })`,
       )
-    )
+    ),
   );
 
   await delay(config.duration);
   await denops.call(
     "luaeval",
-    `vim.api.nvim_buf_clear_namespace(0, ${nameSpace}, 0, -1)`
+    `vim.api.nvim_buf_clear_namespace(0, ${nameSpace}, 0, -1)`,
   );
 };
 
@@ -150,9 +149,7 @@ const computeRanges = ({
               lineText: currentLineText,
               col: {
                 start: isFirstLine ? firstLineStartCol : 0,
-                end: isFirstLine
-                  ? text.length + firstLineStartCol
-                  : text.length,
+                end: isFirstLine ? text.length + firstLineStartCol : text.length,
               },
               matchText: text,
               changeType,
@@ -231,7 +228,7 @@ const fillRangeGaps = ({
 export const main = async (denops: Denops): Promise<void> => {
   nameSpace = (await denops.call(
     "nvim_create_namespace",
-    "highlight-undo"
+    "highlight-undo",
   )) as number;
 
   denops.dispatcher = {
@@ -241,7 +238,7 @@ export const main = async (denops: Denops): Promise<void> => {
     },
     preExec: async (
       command: unknown,
-      counterCommand: unknown
+      counterCommand: unknown,
     ): Promise<void> => {
       if (config == null) {
         throw new Error("Please call setup() first.");
@@ -268,7 +265,7 @@ export const main = async (denops: Denops): Promise<void> => {
 
       const changeCharCount = Math.abs(preCode.length - postCode.length);
       const changeLineCount = Math.abs(
-        preCode.split("\n").length - postCode.split("\n").length
+        preCode.split("\n").length - postCode.split("\n").length,
       );
       if (
         changeCharCount > config.threshold.char ||
@@ -282,57 +279,64 @@ export const main = async (denops: Denops): Promise<void> => {
       const [above, ..._below] = diffLines(preCode, postCode);
       const below = _below.at(-1);
       const aboveLine = above.count! + 1;
-      const removeBelowLine =
-        below?.count != null
-          ? // NOTE: Workaround to get line numbers when the end of the file is changed
-            postCode.split("\n").length + below!.count! ===
+
+      // NOTE: Workaround to get line numbers when the end of the file is changed
+      const removeBelowLine = below?.count != null
+        ? postCode.split("\n").length + below!.count! ===
             preCode.split("\n").length
-            ? preCode.split("\n").length
-            : preCode.split("\n").length - below!.count!
-          : aboveLine;
-      const addBelowLine =
-        below?.count != null
-          ? // NOTE: Workaround to get line numbers when the end of the file is changed
-            preCode.split("\n").length + below!.count! ===
+          ? preCode.split("\n").length
+          : preCode.split("\n").length - below!.count!
+        : aboveLine;
+
+      // NOTE: Workaround to get line numbers when the end of the file is changed
+      const addBelowLine = below?.count != null
+        ? preCode.split("\n").length + below!.count! ===
             postCode.split("\n").length
-            ? postCode.split("\n").length
-            : postCode.split("\n").length - below!.count!
-          : aboveLine;
+          ? postCode.split("\n").length
+          : postCode.split("\n").length - below!.count!
+        : aboveLine;
 
       // Removed
-      let removedRanges = computeRanges({
-        changes,
-        beforeCode: postCode,
-        afterCode: preCode,
-        changeType: "removed",
-      });
+      if (config.enabled.removed) {
+        let removedRanges = computeRanges({
+          changes,
+          beforeCode: postCode,
+          afterCode: preCode,
+          changeType: "removed",
+        });
 
-      removedRanges = fillRangeGaps({
-        ranges: removedRanges,
-        aboveLine,
-        belowLine: removeBelowLine,
-      });
+        removedRanges = fillRangeGaps({
+          ranges: removedRanges,
+          aboveLine,
+          belowLine: removeBelowLine,
+        });
 
-      await highlight(denops, { ranges: removedRanges, changeType: "removed" });
+        await highlight(denops, {
+          ranges: removedRanges,
+          changeType: "removed",
+        });
+      }
 
       // Execute cmd
       await denops.cmd(command as string);
 
       // Added
-      let addedRanges = computeRanges({
-        changes,
-        beforeCode: preCode,
-        afterCode: postCode,
-        changeType: "added",
-      });
+      if (config.enabled.added) {
+        let addedRanges = computeRanges({
+          changes,
+          beforeCode: preCode,
+          afterCode: postCode,
+          changeType: "added",
+        });
 
-      addedRanges = fillRangeGaps({
-        ranges: addedRanges,
-        aboveLine,
-        belowLine: addBelowLine,
-      });
+        addedRanges = fillRangeGaps({
+          ranges: addedRanges,
+          aboveLine,
+          belowLine: addBelowLine,
+        });
 
-      await highlight(denops, { ranges: addedRanges, changeType: "added" });
+        await highlight(denops, { ranges: addedRanges, changeType: "added" });
+      }
     },
   };
 

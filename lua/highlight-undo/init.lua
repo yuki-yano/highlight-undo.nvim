@@ -2,6 +2,7 @@ local M = {}
 
 ---@class highlight-undo.Opts
 ---@field public mappings highlight-undo.Mappings
+---@field public enabled highlight-undo.Enabled
 ---@field public highlight highlight-undo.Highlight
 ---@field public threshold highlight-undo.Threshold
 ---@field public duration number
@@ -9,6 +10,10 @@ local M = {}
 ---@class highlight-undo.Mappings
 ---@field public undo string
 ---@field public redo string
+
+---@class highlight-undo.Enabled
+---@field public added boolean
+---@field public removed boolean
 
 ---@class highlight-undo.Highlight
 ---@field public added string
@@ -23,6 +28,10 @@ local default_opts = {
   mappings = {
     undo = 'u',
     redo = '<C-r>',
+  },
+  enabled = {
+    added = true,
+    removed = true,
   },
   highlight = {
     added = 'DiffAdd',
