@@ -53,8 +53,12 @@ const executeCondition = async (
 ): Promise<boolean> => {
   const undoTree = (await fn.undotree(denops)) as UndoTree;
   if (
-    command === "redo" &&
-    !undoTree.entries.some((entry) => entry.curhead != null)
+    undoTree.entries.length === 0 ||
+    (command === "redo" &&
+      !undoTree.entries.some((entry) => entry.curhead != null)) ||
+    (
+      command === "undo" && undoTree.entries[0].curhead != null
+    )
   ) {
     return false;
   } else {
@@ -72,9 +76,9 @@ const getPreCodeAndPostCode = async ({
   counterCommand: string;
 }): Promise<void> => {
   preCode = ((await fn.getline(denops, 1, "$")) as Array<string>).join("\n") + "\n";
-  await denops.cmd(command as string);
+  await denops.cmd(`silent ${command as string}`);
   postCode = ((await fn.getline(denops, 1, "$")) as Array<string>).join("\n") + "\n";
-  await denops.cmd(counterCommand as string);
+  await denops.cmd(`silent ${counterCommand as string}`);
 };
 
 const highlight = async (
