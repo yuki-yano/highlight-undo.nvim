@@ -59,7 +59,7 @@ function M.setup(opts)
       vim.fn['highlight_undo#notify']('exec', { 'redo', 'undo' })
     end)
 
-    vim.fn['highlight_undo#request']('setup', { opts })
+    vim.fn['highlight_undo#notify']('setup', { opts })
   end
 
   if vim.fn['denops#server#status']() == 'running' then
