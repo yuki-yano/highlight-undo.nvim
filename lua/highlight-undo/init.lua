@@ -46,19 +46,30 @@ local default_opts = {
 
 ---@param opts highlight-undo.Opts
 function M.setup(opts)
-  ---@type highlight-undo.Opts
-  opts = vim.tbl_deep_extend('force', default_opts, opts or {})
+  local function setup()
+    ---@type highlight-undo.Opts
+    opts = vim.tbl_deep_extend('force', default_opts, opts or {})
 
-  vim.keymap.set({ 'n' }, opts.mappings.undo, function()
-    vim.fn['highlight_undo#request']('preExec', { 'undo', 'redo' })
-    vim.fn['highlight_undo#notify']('exec', { 'undo', 'redo' })
-  end)
-  vim.keymap.set({ 'n' }, opts.mappings.redo, function()
-    vim.fn['highlight_undo#request']('preExec', { 'redo', 'undo' })
-    vim.fn['highlight_undo#notify']('exec', { 'redo', 'undo' })
-  end)
+    vim.keymap.set({ 'n' }, opts.mappings.undo, function()
+      vim.fn['highlight_undo#request']('preExec', { 'undo', 'redo' })
+      vim.fn['highlight_undo#notify']('exec', { 'undo', 'redo' })
+    end)
+    vim.keymap.set({ 'n' }, opts.mappings.redo, function()
+      vim.fn['highlight_undo#request']('preExec', { 'redo', 'undo' })
+      vim.fn['highlight_undo#notify']('exec', { 'redo', 'undo' })
+    end)
 
-  vim.fn['highlight_undo#request']('setup', { opts })
+    vim.fn['highlight_undo#request']('setup', { opts })
+  end
+
+  if vim.fn['denops#server#status']() == 'running' then
+    setup()
+  else
+    vim.api.nvim_create_autocmd({ 'User' }, {
+      pattern = 'DenopsReady',
+      callback = setup,
+    })
+  end
 end
 
 return M
