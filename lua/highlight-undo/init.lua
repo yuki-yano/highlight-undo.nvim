@@ -51,12 +51,10 @@ function M.setup(opts)
     opts = vim.tbl_deep_extend('force', default_opts, opts or {})
 
     vim.keymap.set({ 'n' }, opts.mappings.undo, function()
-      vim.fn['highlight_undo#request']('preExec', { 'undo', 'redo' })
-      vim.fn['highlight_undo#notify']('exec', { 'undo', 'redo' })
+      M.undo()
     end)
     vim.keymap.set({ 'n' }, opts.mappings.redo, function()
-      vim.fn['highlight_undo#request']('preExec', { 'redo', 'undo' })
-      vim.fn['highlight_undo#notify']('exec', { 'redo', 'undo' })
+      M.redo()
     end)
 
     vim.fn['highlight_undo#notify']('setup', { opts })
@@ -70,6 +68,16 @@ function M.setup(opts)
       callback = setup,
     })
   end
+end
+
+function M.undo()
+  vim.fn['highlight_undo#request']('preExec', { 'undo', 'redo' })
+  vim.fn['highlight_undo#notify']('exec', { 'undo', 'redo' })
+end
+
+function M.redo()
+  vim.fn['highlight_undo#request']('preExec', { 'redo', 'undo' })
+  vim.fn['highlight_undo#notify']('exec', { 'redo', 'undo' })
 end
 
 return M
