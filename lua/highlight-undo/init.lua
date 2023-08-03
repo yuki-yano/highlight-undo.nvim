@@ -44,28 +44,37 @@ local default_opts = {
   duration = 200,
 }
 
+local config = {}
+local initialized = false
+
 ---@param opts highlight-undo.Opts
 function M.setup(opts)
   local function setup()
     ---@type highlight-undo.Opts
-    opts = vim.tbl_deep_extend('force', default_opts, opts or {})
+    config = vim.tbl_deep_extend('force', default_opts, opts or {})
 
-    vim.keymap.set({ 'n' }, opts.mappings.undo, function()
+    M.enable()
+    vim.keymap.set({ 'n' }, '<Plug>(highlight-undo-undo)', function()
       M.undo()
     end)
-    vim.keymap.set({ 'n' }, opts.mappings.redo, function()
+    vim.keymap.set({ 'n' }, '<Plug>(highlight-undo-redo)', function()
       M.redo()
     end)
 
-    vim.fn['highlight_undo#notify']('setup', { opts })
+    vim.fn['denops#plugin#wait']('highlight-undo')
+    vim.fn['highlight_undo#notify']('setup', { config })
   end
 
   if vim.fn['denops#server#status']() == 'running' then
+    initialized = true
     setup()
   else
     vim.api.nvim_create_autocmd({ 'User' }, {
       pattern = 'DenopsReady',
-      callback = setup,
+      callback = function()
+        initialized = true
+        setup()
+      end,
     })
   end
 end
@@ -78,6 +87,53 @@ end
 function M.redo()
   vim.fn['highlight_undo#request']('preExec', { 'redo', 'undo' })
   vim.fn['highlight_undo#notify']('exec', { 'redo', 'undo' })
+end
+
+M.enabled = false
+
+local function is_initialized()
+  if initialized == false then
+    vim.notify('highlight-undo is not initialized', vim.log.levels.WARN, { title = 'highlight-undo' })
+    return false
+  else
+    return true
+  end
+end
+
+function M.enable()
+  if not is_initialized() then
+    return
+  end
+
+  M.enabled = true
+  vim.keymap.set({ 'n' }, config.mappings.undo, function()
+    M.undo()
+  end)
+  vim.keymap.set({ 'n' }, config.mappings.redo, function()
+    M.redo()
+  end)
+end
+
+function M.disable()
+  if not is_initialized() then
+    return
+  end
+
+  M.enabled = false
+  vim.keymap.del({ 'n' }, config.mappings.undo)
+  vim.keymap.del({ 'n' }, config.mappings.redo)
+end
+
+function M.toggle()
+  if not is_initialized() then
+    return
+  end
+
+  if M.enabled then
+    M.disable()
+  else
+    M.enable()
+  end
 end
 
 return M
