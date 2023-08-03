@@ -1,6 +1,6 @@
 local M = {}
 
----@class highlight-undo.Opts
+---@class highlight-undo.Config
 ---@field public mappings highlight-undo.Mappings
 ---@field public enabled highlight-undo.Enabled
 ---@field public highlight highlight-undo.Highlight
@@ -23,7 +23,7 @@ local M = {}
 ---@field public line number
 ---@field public char number
 
----@type highlight-undo.Opts
+---@type highlight-undo.Config
 local default_opts = {
   mappings = {
     undo = 'u',
@@ -47,10 +47,10 @@ local default_opts = {
 local config = {}
 local initialized = false
 
----@param opts highlight-undo.Opts
+---@param opts highlight-undo.Config
 function M.setup(opts)
   local function setup()
-    ---@type highlight-undo.Opts
+    ---@type highlight-undo.Config
     config = vim.tbl_deep_extend('force', default_opts, opts or {})
 
     M.enable()
