@@ -49,34 +49,12 @@ local initialized = false
 
 ---@param opts highlight-undo.Config
 function M.setup(opts)
-  local function setup()
-    ---@type highlight-undo.Config
-    config = vim.tbl_deep_extend('force', default_opts, opts or {})
+  ---@type highlight-undo.Config
+  config = vim.tbl_deep_extend('force', default_opts, opts or {})
 
-    M.enable()
-    vim.keymap.set({ 'n' }, '<Plug>(highlight-undo-undo)', function()
-      M.undo()
-    end)
-    vim.keymap.set({ 'n' }, '<Plug>(highlight-undo-redo)', function()
-      M.redo()
-    end)
-
-    vim.fn['denops#plugin#wait']('highlight-undo')
-    vim.fn['highlight_undo#notify']('setup', { config })
-  end
-
-  if vim.fn['denops#server#status']() == 'running' then
-    initialized = true
-    setup()
-  else
-    vim.api.nvim_create_autocmd({ 'User' }, {
-      pattern = 'DenopsReady',
-      callback = function()
-        initialized = true
-        setup()
-      end,
-    })
-  end
+  initialized = true
+  M.enable()
+  vim.fn['highlight_undo#request']('setup', { config })
 end
 
 function M.undo()
@@ -106,12 +84,8 @@ function M.enable()
   end
 
   M.enabled = true
-  vim.keymap.set({ 'n' }, config.mappings.undo, function()
-    M.undo()
-  end)
-  vim.keymap.set({ 'n' }, config.mappings.redo, function()
-    M.redo()
-  end)
+  vim.keymap.set({ 'n' }, config.mappings.undo, M.undo)
+  vim.keymap.set({ 'n' }, config.mappings.redo, M.redo)
 end
 
 function M.disable()
