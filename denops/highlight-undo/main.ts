@@ -36,9 +36,7 @@ const executeCondition = async (
     undoTree.entries.length === 0 ||
     (command === "redo" &&
       !undoTree.entries.some((entry) => entry.curhead != null)) ||
-    (
-      command === "undo" && undoTree.entries[0].curhead != null
-    )
+    (command === "undo" && undoTree.entries[0].curhead != null)
   ) {
     return false;
   } else {
@@ -50,163 +48,122 @@ const getPreCodeAndPostCode = async ({
   denops,
   command,
   counterCommand,
+  bufnr,
 }: {
   denops: Denops;
   command: string;
   counterCommand: string;
+  bufnr: number;
 }): Promise<void> => {
-  preCode = ((await fn.getline(denops, 1, "$")) as Array<string>).join("\n") + "\n";
-  await denops.cmd(`silent ${command as string}`);
-  postCode = ((await fn.getline(denops, 1, "$")) as Array<string>).join("\n") + "\n";
-  await denops.cmd(`silent ${counterCommand as string}`);
+  const perf = debugMode ? new PerformanceMonitor() : null;
+  perf?.start();
+
+  try {
+    // Clear any existing diff cache to ensure fresh calculations
+    diffOptimizer.clearCache();
+
+    // Get current buffer content
+    const currentCode = ((await fn.getline(denops, 1, "$")) as Array<string>).join("\n") + "\n";
+
+    perf?.mark("bufferRead");
+
+    // Execute command to get post state
+    await denops.cmd(`silent ${command}`);
+    const afterCode = ((await fn.getline(denops, 1, "$")) as Array<string>).join("\n") + "\n";
+
+    // Revert to get back to pre state
+    await denops.cmd(`silent ${counterCommand}`);
+
+    // Store the states based on command type
+    // For undo: currentCode is "before undo", afterCode is "after undo"
+    // For redo: currentCode is "before redo", afterCode is "after redo"
+    bufferStates.set(bufnr, currentCode, afterCode);
+
+    if (debugMode) {
+      console.log(`[highlight-undo] Stored buffer state for bufnr ${bufnr}, command: ${command}`);
+    }
+
+    if (perf) {
+      const metrics = perf.end();
+      console.log(`[highlight-undo] Buffer read: ${PerformanceMonitor.format(metrics)}`);
+    }
+  } catch (error) {
+    await errorHandler.handle(denops, error, {
+      bufnr,
+      command,
+      phase: "getPreCodeAndPostCode",
+    });
+    throw error;
+  }
+};
+
+// Convert ranges with proper multi-byte character handling
+const convertRangesWithEncoding = (ranges: ReadonlyArray<Range>): ReadonlyArray<Range> => {
+  return ranges.map((range) => {
+    // For removed text, special handling is needed
+    if (range.changeType === "removed" && !range.lineText) {
+      // If line doesn't exist (e.g., line was completely removed),
+      // position at the start of the line
+
+      return {
+        ...range,
+        col: {
+          start: 0,
+          end: 0,
+        },
+      };
+    }
+
+    // Convert character indices to byte offsets for Neovim
+    const beforeText = range.lineText.substring(0, range.col.start);
+    const matchText = range.lineText.substring(range.col.start, range.col.end);
+
+    const byteStart = EncodingUtil.getByteLength(beforeText);
+    const byteEnd = byteStart + EncodingUtil.getByteLength(matchText);
+
+    return {
+      ...range,
+      col: {
+        start: byteStart,
+        end: byteEnd,
+      },
+    };
+  });
 };
 
 const highlight = async (
   denops: Denops,
-  {
-    ranges,
-    changeType,
-  }: {
-    ranges: ReadonlyArray<Range>;
-    changeType: ChangeType;
-  },
+  ranges: ReadonlyArray<Range>,
+  changeType: "added" | "removed",
 ) => {
   if (ranges.length === 0) {
     return;
   }
 
-  const highlightGroup = changeType === "added" ? config.highlight.added : config.highlight.removed;
+  try {
+    const highlightGroup = changeType === "added" ? config.highlight.added : config.highlight.removed;
 
-  await Promise.all(
-    ranges.map((range) =>
-      denops.call(
-        "luaeval",
-        `vim.highlight.range(0, ${nameSpace}, '${highlightGroup}', { ${range.lnum - 1}, ${
-          range.col.start - 1 < 0 ? 0 : range.col.start - 1
-        } }, { ${range.lnum - 1}, ${range.col.end} })`,
-      )
-    ),
-  );
+    // Convert ranges with proper encoding
+    const convertedRanges = convertRangesWithEncoding(ranges);
 
-  await delay(config.duration);
-  await denops.call(
-    "luaeval",
-    `vim.api.nvim_buf_clear_namespace(0, ${nameSpace}, 0, -1)`,
-  );
-};
+    await highlightBatcher.applyHighlights(
+      denops,
+      convertedRanges,
+      nameSpace,
+      highlightGroup,
+    );
 
-const computeRanges = ({
-  changes,
-  // TODO: Unnecessary?
-  // beforeCode,
-  afterCode,
-  changeType,
-}: {
-  changes: Array<Diff.Change>;
-  beforeCode: string;
-  afterCode: string;
-  changeType: ChangeType;
-}): ReadonlyArray<Range> => {
-  let codeIndex = 0;
-  let ranges: ReadonlyArray<Range> = [];
+    // Wait for the specified duration before clearing highlights
+    await delay(config.duration);
 
-  for (const change of changes) {
-    if (change[changeType]) {
-      let lnum = afterCode.substring(0, codeIndex).split("\n").length;
-
-      const currentPos = afterCode.substring(0, codeIndex).length;
-      const startPosInCurrentLine = afterCode
-        .substring(0, codeIndex)
-        .lastIndexOf("\n");
-
-      // If the change contains line breaks, split each line.
-      if (change.value.includes("\n")) {
-        const firstLineStartCol = codeIndex - startPosInCurrentLine - 1;
-
-        let isFirstLine = true;
-        for (const text of change.value.split("\n")) {
-          const currentLineText = afterCode.split("\n")[lnum - 1];
-          ranges = [
-            ...ranges,
-            {
-              lnum,
-              lineText: currentLineText,
-              col: {
-                start: isFirstLine ? firstLineStartCol : 0,
-                end: isFirstLine ? text.length + firstLineStartCol : text.length,
-              },
-              matchText: text,
-              changeType,
-            },
-          ];
-          isFirstLine = false;
-          lnum += 1;
-        }
-      } else {
-        const currentLineText = afterCode.split("\n")[lnum - 1];
-        const start = currentPos - startPosInCurrentLine - 1;
-        ranges = [
-          ...ranges,
-          {
-            lnum,
-            lineText: currentLineText,
-            col: {
-              start: currentPos - startPosInCurrentLine,
-              end: start + change.value.length,
-            },
-            matchText: change.value,
-            changeType,
-          },
-        ];
-      }
-    }
-
-    codeIndex = codeIndex + change.count!;
+    await highlightBatcher.clearHighlights(denops, nameSpace);
+  } catch (error) {
+    await errorHandler.handle(denops, error, {
+      phase: "highlight",
+      changeType,
+      rangeCount: ranges.length,
+    });
   }
-
-  return ranges;
-};
-
-const fillRangeGaps = ({
-  ranges,
-  aboveLine,
-  belowLine,
-}: {
-  ranges: ReadonlyArray<Range>;
-  aboveLine: number;
-  belowLine: number;
-}): ReadonlyArray<Range> => {
-  let filledRanges: ReadonlyArray<Range> = [];
-  for (const range of ranges) {
-    if (
-      range.lnum > aboveLine &&
-      range.lnum < belowLine &&
-      range.col.start === 0
-    ) {
-      filledRanges = [
-        ...filledRanges,
-        {
-          ...range,
-          col: {
-            start: 0,
-            end: range.lineText.length,
-          },
-        },
-      ];
-    } else if (
-      range.lnum > aboveLine &&
-      range.lnum < belowLine &&
-      range.col.start !== 0
-    ) {
-      filledRanges = [...filledRanges, range];
-    } else if (range.lnum === aboveLine || range.lnum === belowLine) {
-      filledRanges = [...filledRanges, range];
-    } else {
-      continue;
-    }
-  }
-
-  return filledRanges;
 };
 
 export const main = async (denops: Denops): Promise<void> => {
@@ -254,101 +211,196 @@ export const main = async (denops: Denops): Promise<void> => {
         throw new Error("Please call setup() first.");
       }
 
-      if (!(await executeCondition(denops, { command: command as Command }))) {
-        return;
-      }
+      const bufnr = (await fn.bufnr(denops, "%")) as number;
 
-      await getPreCodeAndPostCode({
-        denops,
-        command: command as string,
-        counterCommand: counterCommand as string,
+      // Use lock to prevent concurrent access to buffer state
+      await lockManager.acquire(`buffer-${bufnr}`, async () => {
+        if (!(await executeCondition(denops, { command: command as Command }))) {
+          return;
+        }
+
+        await getPreCodeAndPostCode({
+          denops,
+          command: command as string,
+          counterCommand: counterCommand as string,
+          bufnr,
+        });
       });
     },
+
     exec: async (command: unknown, _counterCommand: unknown): Promise<void> => {
       if (config == null) {
         throw new Error("Please call setup() first.");
       }
 
-      if (!(await executeCondition(denops, { command: command as Command }))) {
-        return;
+      const bufnr = (await fn.bufnr(denops, "%")) as number;
+
+      // Queue the command for execution
+      await commandQueue.enqueue(bufnr, async () => {
+        await executeHighlightCommand(denops, command as string, bufnr);
+      });
+    },
+
+    // Buffer cleanup
+    bufferDelete: async (...args: unknown[]): Promise<void> => {
+      const bufnr = args[0];
+      if (typeof bufnr === "number") {
+        bufferStates.clear(bufnr);
+        commandQueue.clearBuffer(bufnr);
       }
+    },
 
-      const changeCharCount = Math.abs(preCode.length - postCode.length);
-      const changeLineCount = Math.abs(
-        preCode.split("\n").length - postCode.split("\n").length,
-      );
-      if (
-        changeCharCount > config.threshold.char ||
-        changeLineCount > config.threshold.line
-      ) {
-        denops.cmd(command as string);
-        return;
-      }
+    // Get performance stats
+    getStats: async (): Promise<unknown> => {
+      return {
+        buffers: bufferStates.getStats(),
+        queue: commandQueue.getStats(),
+        locks: lockManager.getLockedResources(),
+      };
+    },
 
-      const changes = diffChars(preCode, postCode);
-      const [above, ..._below] = diffLines(preCode, postCode);
-      const below = _below.at(-1);
-      const aboveLine = above.count! + 1;
-
-      // NOTE: Workaround to get line numbers when the end of the file is changed
-      const removeBelowLine = below?.count != null
-        ? postCode.split("\n").length + below!.count! ===
-            preCode.split("\n").length
-          ? preCode.split("\n").length
-          : preCode.split("\n").length - below!.count!
-        : aboveLine;
-
-      // NOTE: Workaround to get line numbers when the end of the file is changed
-      const addBelowLine = below?.count != null
-        ? preCode.split("\n").length + below!.count! ===
-            postCode.split("\n").length
-          ? postCode.split("\n").length
-          : postCode.split("\n").length - below!.count!
-        : aboveLine;
-
-      // Removed
-      if (config.enabled.removed) {
-        let removedRanges = computeRanges({
-          changes,
-          beforeCode: postCode,
-          afterCode: preCode,
-          changeType: "removed",
-        });
-
-        removedRanges = fillRangeGaps({
-          ranges: removedRanges,
-          aboveLine,
-          belowLine: removeBelowLine,
-        });
-
-        await highlight(denops, {
-          ranges: removedRanges,
-          changeType: "removed",
-        });
-      }
-
-      // Execute cmd
-      await denops.cmd(command as string);
-
-      // Added
-      if (config.enabled.added) {
-        let addedRanges = computeRanges({
-          changes,
-          beforeCode: preCode,
-          afterCode: postCode,
-          changeType: "added",
-        });
-
-        addedRanges = fillRangeGaps({
-          ranges: addedRanges,
-          aboveLine,
-          belowLine: addBelowLine,
-        });
-
-        await highlight(denops, { ranges: addedRanges, changeType: "added" });
-      }
+    // Clear all caches
+    clearCache: async (): Promise<void> => {
+      bufferStates.clearAll();
+      diffOptimizer.clearCache();
+      commandQueue.clearAll();
     },
   };
 
+  // Register autocmd for buffer cleanup
+  // Note: Some Neovim versions may not support certain autocmd events via denops
+  // For now, we'll skip autocmd registration and rely on manual cleanup
+
   return await Promise.resolve();
 };
+
+// Separate function for executing highlight command
+async function executeHighlightCommand(
+  denops: Denops,
+  command: string,
+  bufnr: number,
+): Promise<void> {
+  if (!(await executeCondition(denops, { command: command as Command }))) {
+    return;
+  }
+
+  const perf = debugMode ? new PerformanceMonitor() : null;
+  perf?.start();
+
+  try {
+    const state = bufferStates.get(bufnr);
+
+    if (!state) {
+      // Fallback to executing command without highlight
+      if (debugMode) {
+        console.log(`[highlight-undo] No buffer state found for bufnr ${bufnr}, executing without highlight`);
+      }
+      await denops.cmd(command);
+      return;
+    }
+
+    const { preCode, postCode } = state;
+
+    if (debugMode) {
+      console.log(`[highlight-undo] Retrieved buffer state for bufnr ${bufnr}`);
+    }
+
+    // Clear the buffer state after retrieving it to ensure fresh state for next undo/redo
+    bufferStates.clear(bufnr);
+
+    perf?.mark("bufferRead");
+
+    // Optimized diff calculation
+    const diffResult = diffOptimizer.calculateDiff(
+      preCode,
+      postCode,
+      config.threshold,
+    );
+    perf?.mark("diffCalculation");
+
+    if (!diffResult) {
+      // Threshold exceeded or no changes
+      await denops.cmd(command);
+      return;
+    }
+
+    const { changes, lineInfo } = diffResult;
+
+    // Execute the actual command first
+    await denops.cmd(command);
+
+    // For undo: preCode is "before undo" (current state), postCode is "after undo" (past state)
+    // For redo: preCode is "before redo" (current state), postCode is "after redo" (future state)
+    // We want to show what changed from before to after the command
+    const actualBeforeState = preCode;
+    const actualAfterState = postCode;
+
+    const textLengthDiff = actualAfterState.length - actualBeforeState.length;
+    const isTextAdded = textLengthDiff > 0;
+
+    // Recalculate diff between before and after states
+    const freshDiffResult = diffOptimizer.calculateDiff(
+      actualBeforeState,
+      actualAfterState,
+      config.threshold,
+    );
+
+    if (!freshDiffResult) {
+      return;
+    }
+
+    const { changes: freshChanges, lineInfo: freshLineInfo } = freshDiffResult;
+
+    // Show additions with DiffAdd (green) and deletions with DiffDelete (red)
+    if (isTextAdded) {
+      // Text was added - show what was added
+      if (config.enabled.added) {
+        const addedRanges = computeRanges({
+          changes: freshChanges,
+          beforeCode: actualBeforeState,
+          afterCode: actualAfterState,
+          changeType: "added",
+        });
+
+        const filledRanges = fillRangeGaps({
+          ranges: addedRanges,
+          aboveLine: freshLineInfo.aboveLine,
+          belowLine: freshLineInfo.belowLine,
+        });
+
+        perf?.mark("highlightApplication");
+        await highlight(denops, filledRanges, "added");
+      }
+    } else if (textLengthDiff < 0) {
+      // Text was removed - show what was removed
+      if (config.enabled.removed) {
+        const removedRanges = computeRanges({
+          changes: freshChanges,
+          beforeCode: actualBeforeState,
+          afterCode: actualAfterState,
+          changeType: "removed",
+        });
+
+        const filledRanges = fillRangeGaps({
+          ranges: removedRanges,
+          aboveLine: freshLineInfo.aboveLine,
+          belowLine: freshLineInfo.belowLine,
+        });
+
+        perf?.mark("highlightApplication");
+        await highlight(denops, filledRanges, "removed");
+      }
+    }
+
+    if (perf) {
+      const metrics = perf.end();
+      console.log(`[highlight-undo] Total: ${PerformanceMonitor.format(metrics)}`);
+    }
+  } catch (error) {
+    await errorHandler.handle(denops, error, {
+      bufnr,
+      command,
+      phase: "executeHighlightCommand",
+    });
+  }
+}
