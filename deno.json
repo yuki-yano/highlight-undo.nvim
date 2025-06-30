@@ -1,8 +1,16 @@
 {
   "lock": false,
   "fmt": {
-    "options": {
-      "lineWidth": 120
-    }
+    "lineWidth": 120
+  },
+  "test": {
+    "include": ["denops/**/*_test.ts"]
+  },
+  "tasks": {
+    "test": "deno test --allow-all",
+    "test:watch": "deno test --allow-all --watch",
+    "check": "deno check denops",
+    "fmt": "deno fmt",
+    "lint": "deno lint"
   }
 }
