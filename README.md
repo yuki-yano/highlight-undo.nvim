@@ -1,48 +1,196 @@
 # highlight-undo.nvim
 
-This plugin highlights the differences when executing undo and redo.
+A Neovim plugin that visualizes undo/redo operations by highlighting the text differences. This plugin makes it easy to see what changes when you undo or redo, improving your editing workflow.
 
-This plugin depends on [denops.vim](https://github.com/vim-denops/denops.vim).
+## Features
+
+- 🎯 **Visual Feedback**: Instantly see what text was added or removed during undo/redo
+- ⚡ **High Performance**: Optimized for large files with efficient diff algorithms
+- 🌏 **Multi-byte Support**: Full support for Unicode, including CJK characters and emojis
+- 🎨 **Customizable**: Configure highlight colors, duration, and behavior
+- 🔧 **Smart Thresholds**: Automatically skips highlighting for massive changes to maintain performance
+
+## Requirements
+
+- Neovim >= 0.8.0
+- [denops.vim](https://github.com/vim-denops/denops.vim) - The powerful ecosystem for Vim/Neovim
+- [Deno](https://deno.land/) - Required by denops.vim
+
+## Installation
+
+Using [lazy.nvim](https://github.com/folke/lazy.nvim):
+
+```lua
+{
+  'yuki-yano/highlight-undo.nvim',
+  dependencies = {
+    'vim-denops/denops.vim',
+  },
+  config = function()
+    require('highlight-undo').setup({})
+  end,
+}
+```
+
+Using [packer.nvim](https://github.com/wbthomason/packer.nvim):
+
+```lua
+use {
+  'yuki-yano/highlight-undo.nvim',
+  requires = {
+    'vim-denops/denops.vim',
+  },
+  config = function()
+    require('highlight-undo').setup({})
+  end,
+}
+```
 
 ## Demo
 
 https://user-images.githubusercontent.com/5423775/213918351-8f75c385-9d87-4efb-93ea-4a468213faa0.mp4
 
-## Usage
+## Configuration
 
-Call the setup function will default map to `u` and `<C-r>`.
+The plugin provides sensible defaults but can be customized to your preferences:
 
 ```lua
 require('highlight-undo').setup({
-  -- opts
+  -- Key mappings
+  mappings = {
+    undo = 'u',      -- Key for undo with highlight
+    redo = '<C-r>',  -- Key for redo with highlight
+  },
+  
+  -- What to highlight
+  enabled = {
+    added = true,    -- Highlight added text
+    removed = true,  -- Highlight removed text
+  },
+  
+  -- Highlight groups
+  highlight = {
+    added = 'DiffAdd',      -- Highlight group for added text
+    removed = 'DiffDelete', -- Highlight group for removed text
+  },
+  
+  -- Performance thresholds
+  threshold = {
+    line = 50,     -- Skip highlighting if more than 50 lines changed
+    char = 1500,   -- Skip highlighting if more than 1500 characters changed
+  },
+  
+  -- Highlight duration
+  duration = 200,  -- Duration in milliseconds
+  
+  -- Debug mode
+  debug = false,   -- Enable debug logging for troubleshooting
 })
 ```
 
-default opts:
+### Commands
+
+The plugin provides commands for runtime control:
+
+```vim
+" Disable highlight-undo temporarily
+:lua require('highlight-undo').disable()
+
+" Re-enable highlight-undo
+:lua require('highlight-undo').enable()
+
+" Toggle highlight-undo on/off
+:lua require('highlight-undo').toggle()
+```
+
+## Advanced Usage
+
+### Performance Monitoring
+
+Monitor plugin performance and cache usage:
 
 ```lua
-{
-  -- Mapping keys
-  mappings = {
-    undo = 'u',
-    redo = '<C-r>',
-  },
-  -- Setting to enable highlighting when a diff is added or removed
-  enabled = {
-    added = true,
-    removed = true,
-  },
-  -- Highlight groups applied to added and removed parts during undo
-  highlight = {
-    added = 'DiffAdd',
-    removed = 'DiffDelete',
-  },
-  -- If the amount of change exceeds this amount, the highlight will not be performed.
-  threshold = {
-    line = 50,
-    char = 1500,
-  },
-  -- Duration to highlight(ms)
-  duration = 200,
-}
+-- Get performance statistics
+local stats = require('highlight-undo').get_stats()
+-- Returns detailed statistics about buffer cache and performance
+
+-- Clear all buffer caches manually
+require('highlight-undo').clear_cache()
 ```
+
+### Custom Highlight Groups
+
+You can define custom highlight groups for better visual distinction:
+
+```vim
+" Define custom highlight groups
+highlight HighlightUndoAdded guibg=#2d4f2d guifg=#a3d3a3
+highlight HighlightUndoRemoved guibg=#4f2d2d guifg=#d3a3a3
+
+" Use them in setup
+lua require('highlight-undo').setup({
+  highlight = {
+    added = 'HighlightUndoAdded',
+    removed = 'HighlightUndoRemoved',
+  }
+})
+```
+
+## Performance Optimizations
+
+This plugin is designed for performance:
+
+- **Smart Caching**: Buffer states are cached to minimize computation
+- **Diff Optimization**: Uses efficient algorithms optimized for common editing patterns
+- **Batch Operations**: Highlights are applied in batches to reduce API calls
+- **Memory Management**: Automatic cache eviction prevents memory bloat
+- **Concurrent Safety**: Thread-safe operations prevent race conditions
+
+## Troubleshooting
+
+### Debug Mode
+
+Enable debug mode to diagnose issues:
+
+```lua
+require('highlight-undo').setup({
+  debug = true,
+  -- Optional: specify a log file
+  logFile = vim.fn.stdpath('data') .. '/highlight-undo.log',
+})
+```
+
+### Common Issues
+
+1. **Highlights not appearing**: Check if denops.vim is properly installed and running
+2. **Performance issues**: Adjust the `threshold` values for your use case
+3. **Encoding issues**: The plugin handles multi-byte characters automatically
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit issues or pull requests.
+
+### Development
+
+```bash
+# Run tests
+deno task test
+
+# Format code
+deno task fmt
+
+# Type check
+deno task check
+
+# Run linter
+deno task lint
+```
+
+## License
+
+MIT License - see [LICENSE](LICENSE) file for details
+
+## Credits
+
+- Built with [denops.vim](https://github.com/vim-denops/denops.vim) - the excellent Deno-based plugin framework
+- Inspired by the need for better visual feedback in Vim's undo system
