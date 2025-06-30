@@ -112,4 +112,40 @@ function M.toggle()
   end
 end
 
+-- Get performance stats
+function M.get_stats()
+  if not is_initialized() then
+    return nil
+  end
+
+  return vim.fn['highlight_undo#request']('getStats', {})
+end
+
+-- Clear cache for all buffers
+function M.clear_cache()
+  if not is_initialized() then
+    return
+  end
+
+  vim.fn['highlight_undo#notify']('clearCache', {})
+end
+
+-- Internal function for highlight application (called from TypeScript)
+function M._apply_highlights(namespace, highlight_group, ranges)
+  local highlighter = require('highlight-undo.highlighter')
+  return highlighter.batch_apply_highlights(namespace, highlight_group, ranges)
+end
+
+-- Internal function for clearing highlights (called from TypeScript)
+function M._clear_highlights(namespace, bufnr)
+  local highlighter = require('highlight-undo.highlighter')
+  highlighter.clear_highlights(namespace, bufnr)
+end
+
+-- Internal function for bulk highlight application (called from TypeScript)
+function M._apply_highlights_bulk(namespace, added_hl, removed_hl, added_ranges, removed_ranges)
+  local highlighter = require('highlight-undo.highlighter')
+  return highlighter.apply_highlights_bulk(namespace, added_hl, removed_hl, added_ranges, removed_ranges)
+end
+
 return M
