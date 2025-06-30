@@ -1,40 +1,15 @@
-import { delay, Diff, diffChars, diffLines, fn } from "./deps.ts";
-import type { Denops } from "./deps.ts";
-
-type Config = {
-  mappings: {
-    undo: string;
-    redo: string;
-  };
-  enabled: {
-    added: boolean;
-    removed: boolean;
-  };
-  highlight: {
-    added: string;
-    removed: string;
-  };
-  threshold: {
-    line: number;
-    char: number;
-  };
-  duration: number;
-};
+import { delay, Denops, fn } from "./deps.ts";
+import { BufferStateManager } from "./buffer-state.ts";
+import { DiffOptimizer } from "./diff-optimizer.ts";
+import { HighlightBatcher } from "./highlight-batcher.ts";
+import { PerformanceMonitor } from "./performance.ts";
+import { computeRanges, fillRangeGaps, type Range } from "./utils.ts";
+import { Config, validateConfig } from "./config.ts";
+import { ErrorHandler } from "./error-handler.ts";
+import { EncodingUtil } from "./encoding.ts";
+import { CommandQueue, LockManager } from "./command-queue.ts";
 
 type Command = "undo" | "redo";
-type ChangeType = "added" | "removed";
-
-type Range = {
-  lnum: number;
-  lineText: string;
-  col: {
-    start: number;
-    end: number;
-  };
-  matchText: string;
-  // NOTE: debug
-  changeType: ChangeType;
-};
 
 type UndoTree = {
   entries: Array<{
@@ -44,8 +19,13 @@ type UndoTree = {
 
 let config: Config;
 let nameSpace: number;
-let preCode = "";
-let postCode = "";
+const bufferStates = new BufferStateManager();
+const diffOptimizer = new DiffOptimizer();
+const highlightBatcher = new HighlightBatcher();
+const errorHandler = new ErrorHandler();
+const commandQueue = new CommandQueue();
+const lockManager = new LockManager();
+let debugMode = false;
 
 const executeCondition = async (
   denops: Denops,
@@ -235,11 +215,37 @@ export const main = async (denops: Denops): Promise<void> => {
     "highlight-undo",
   )) as number;
 
+  // Clean up buffer states when buffer is deleted
   denops.dispatcher = {
     setup: async (_config: unknown): Promise<void> => {
-      config = _config as Config;
-      return await Promise.resolve();
+      try {
+        config = validateConfig(_config);
+        debugMode = config.debug === true;
+
+        if (debugMode) {
+          console.log(`[highlight-undo] Config loaded:`, {
+            duration: config.duration,
+            highlight: config.highlight,
+            enabled: config.enabled,
+          });
+          // Set Vim global variable for Lua side
+          await denops.cmd("let g:highlight_undo_debug = 1");
+        } else {
+          await denops.cmd("let g:highlight_undo_debug = 0");
+        }
+
+        errorHandler.setDebugMode(debugMode);
+        if (config.logFile) {
+          errorHandler.setLogFile(config.logFile);
+        }
+
+        return await Promise.resolve();
+      } catch (error) {
+        await errorHandler.handle(denops, error, { phase: "setup" });
+        throw error;
+      }
     },
+
     preExec: async (
       command: unknown,
       counterCommand: unknown,
