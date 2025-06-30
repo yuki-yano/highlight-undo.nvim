@@ -6,6 +6,8 @@ local M = {}
 ---@field public highlight highlight-undo.Highlight
 ---@field public threshold highlight-undo.Threshold
 ---@field public duration number
+---@field public debug? boolean
+---@field public logFile? string
 
 ---@class highlight-undo.Mappings
 ---@field public undo string
