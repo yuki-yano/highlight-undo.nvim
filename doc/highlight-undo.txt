@@ -57,18 +57,6 @@ Using lazy.nvim:
   }
 <
 
-Using packer.nvim:
->lua
-  use {
-    'yuki-yano/highlight-undo.nvim',
-    requires = {
-      'vim-denops/denops.vim',
-    },
-    config = function()
-      require('highlight-undo').setup({})
-    end,
-  }
-<
 
 ==============================================================================
 USAGE                                                    *highlight-undo-usage*
