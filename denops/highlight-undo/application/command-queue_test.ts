@@ -1,7 +1,8 @@
+// deno-lint-ignore-file require-await
 import { assertEquals } from "https://deno.land/std@0.173.0/testing/asserts.ts";
 import { describe, it } from "https://deno.land/std@0.173.0/testing/bdd.ts";
 import { CommandQueue, LockManager } from "./command-queue.ts";
-import { delay } from "./deps.ts";
+const delay = (ms: number): Promise<void> => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 describe("CommandQueue", () => {
   it("should execute commands in order", async () => {
@@ -18,7 +19,7 @@ describe("CommandQueue", () => {
       results.push(2);
     });
 
-    await queue.enqueue(1, () => {
+    await queue.enqueue(1, async () => {
       results.push(3);
     });
 
@@ -43,7 +44,7 @@ describe("CommandQueue", () => {
       results.push("buffer2-cmd1");
     });
 
-    queue.enqueue(1, () => {
+    queue.enqueue(1, async () => {
       results.push("buffer1-cmd2");
     });
 
@@ -65,15 +66,15 @@ describe("CommandQueue", () => {
     const queue = new CommandQueue();
     const results: number[] = [];
 
-    await queue.enqueue(1, () => {
+    await queue.enqueue(1, async () => {
       results.push(1);
     });
 
-    await queue.enqueue(1, () => {
+    await queue.enqueue(1, async () => {
       throw new Error("Test error");
     });
 
-    await queue.enqueue(1, () => {
+    await queue.enqueue(1, async () => {
       results.push(3);
     });
 
@@ -105,11 +106,11 @@ describe("CommandQueue", () => {
     });
 
     // These will be dequeued together when processQueue runs
-    queue.enqueue(1, () => {
+    queue.enqueue(1, async () => {
       results.push(2);
     });
 
-    queue.enqueue(1, () => {
+    queue.enqueue(1, async () => {
       results.push(3);
     });
 
@@ -127,7 +128,7 @@ describe("CommandQueue", () => {
     assertEquals(results, [1, 2, 3]);
 
     // Test that new commands after clear work normally
-    await queue.enqueue(1, () => {
+    await queue.enqueue(1, async () => {
       results.push(4);
     });
 
@@ -142,7 +143,7 @@ describe("CommandQueue", () => {
 
     // Then try to add commands - they should execute normally
     // because clearBuffer only clears existing commands
-    await queue2.enqueue(2, () => {
+    await queue2.enqueue(2, async () => {
       results2.push(1);
     });
     assertEquals(results2, [1]);
@@ -151,9 +152,15 @@ describe("CommandQueue", () => {
   it("should provide accurate stats", async () => {
     const queue = new CommandQueue();
 
-    queue.enqueue(1, async () => await delay(20));
-    queue.enqueue(1, async () => await delay(10));
-    queue.enqueue(2, async () => await delay(10));
+    queue.enqueue(1, async () => {
+      await delay(20);
+    });
+    queue.enqueue(1, async () => {
+      await delay(10);
+    });
+    queue.enqueue(2, async () => {
+      await delay(10);
+    });
 
     await delay(5);
 

@@ -1,11 +1,11 @@
 import { Denops, fn } from "./deps.ts";
-import { BufferStateManager } from "./application/buffer-state.ts";
-import { DiffOptimizer } from "./core/diff-optimizer.ts";
-import { HighlightBatcher } from "./infrastructure/highlight-batcher.ts";
-import { PerformanceMonitor } from "./performance.ts";
+import { createBufferStateManager } from "./application/buffer-state.ts";
+import { createDiffOptimizer } from "./core/diff-optimizer.ts";
+import { createHighlightBatcher } from "./infrastructure/highlight-batcher.ts";
+import { createPerformanceMonitor, formatPerformanceMetrics } from "./performance.ts";
 import { Config, validateConfig } from "./config.ts";
-import { ErrorHandler } from "./error-handler.ts";
-import { CommandQueue, LockManager } from "./application/command-queue.ts";
+import { createErrorHandler } from "./error-handler.ts";
+import { createCommandQueue, createLockManager } from "./application/command-queue.ts";
 import { HighlightCommandExecutor } from "./application/highlight-command-executor.ts";
 
 type Command = "undo" | "redo";
@@ -18,12 +18,12 @@ type UndoTree = {
 
 let config: Config;
 let nameSpace: number;
-const bufferStates = new BufferStateManager();
-const diffOptimizer = new DiffOptimizer();
-const highlightBatcher = new HighlightBatcher();
-const errorHandler = new ErrorHandler();
-const commandQueue = new CommandQueue();
-const lockManager = new LockManager();
+const bufferStates = createBufferStateManager();
+const diffOptimizer = createDiffOptimizer();
+const highlightBatcher = createHighlightBatcher();
+const errorHandler = createErrorHandler();
+const commandQueue = createCommandQueue();
+const lockManager = createLockManager();
 let debugMode = false;
 let highlightExecutor: HighlightCommandExecutor;
 
@@ -55,13 +55,12 @@ const getPreCodeAndPostCode = async ({
   counterCommand: string;
   bufnr: number;
 }): Promise<void> => {
-  const perf = debugMode ? new PerformanceMonitor() : null;
-  perf?.start();
+  const perf = debugMode ? createPerformanceMonitor() : null;
 
   try {
     // Clear the diff optimizer cache to ensure fresh calculations
     diffOptimizer.clearCache();
-    
+
     // Get current buffer content
     const currentCode = ((await fn.getline(denops, 1, "$")) as Array<string>).join("\n") + "\n";
 
@@ -85,7 +84,7 @@ const getPreCodeAndPostCode = async ({
 
     if (perf) {
       const metrics = perf.end();
-      console.log(`[highlight-undo] Buffer read: ${PerformanceMonitor.format(metrics)}`);
+      console.log(`[highlight-undo] Buffer read: ${formatPerformanceMetrics(metrics)}`);
     }
   } catch (error) {
     await errorHandler.handle(denops, error, {
@@ -110,7 +109,7 @@ export const main = async (denops: Denops): Promise<void> => {
         config = validateConfig(_config);
         debugMode = config.debug === true;
         // Set global debug mode for other modules
-        (globalThis as any).debugMode = debugMode;
+        (globalThis as { debugMode?: boolean }).debugMode = debugMode;
 
         if (debugMode) {
           console.log(`[highlight-undo] Config loaded:`, {
@@ -186,28 +185,30 @@ export const main = async (denops: Denops): Promise<void> => {
     },
 
     // Buffer cleanup
-    bufferDelete: async (...args: unknown[]): Promise<void> => {
+    bufferDelete: (...args: unknown[]): Promise<void> => {
       const bufnr = args[0];
       if (typeof bufnr === "number") {
         bufferStates.clear(bufnr);
         commandQueue.clearBuffer(bufnr);
       }
+      return Promise.resolve();
     },
 
     // Get performance stats
-    getStats: async (): Promise<unknown> => {
-      return {
+    getStats: (): Promise<unknown> => {
+      return Promise.resolve({
         buffers: bufferStates.getStats(),
         queue: commandQueue.getStats(),
         locks: lockManager.getLockedResources(),
-      };
+      });
     },
 
     // Clear all caches
-    clearCache: async (): Promise<void> => {
+    clearCache: (): Promise<void> => {
       bufferStates.clearAll();
       diffOptimizer.clearCache();
       commandQueue.clearAll();
+      return Promise.resolve();
     },
   };
 

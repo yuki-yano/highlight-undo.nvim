@@ -1,6 +1,6 @@
 // Benchmark script to measure performance improvements
 
-import { DiffOptimizer } from "./diff-optimizer.ts";
+import { DiffOptimizer } from "./core/diff-optimizer.ts";
 import { diffChars } from "./deps.ts";
 
 function generateTestData(size: number): { before: string; after: string } {

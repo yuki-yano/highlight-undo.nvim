@@ -48,22 +48,26 @@ export function isValidConfig(config: unknown): config is ConfigSchema {
     return false;
   }
 
-  const c = config as any;
+  const c = config as Record<string, unknown>;
 
   // Check required fields
   return (
     typeof c.mappings === "object" &&
-    typeof c.mappings.undo === "string" &&
-    typeof c.mappings.redo === "string" &&
+    c.mappings !== null &&
+    typeof (c.mappings as Record<string, unknown>).undo === "string" &&
+    typeof (c.mappings as Record<string, unknown>).redo === "string" &&
     typeof c.enabled === "object" &&
-    typeof c.enabled.added === "boolean" &&
-    typeof c.enabled.removed === "boolean" &&
+    c.enabled !== null &&
+    typeof (c.enabled as Record<string, unknown>).added === "boolean" &&
+    typeof (c.enabled as Record<string, unknown>).removed === "boolean" &&
     typeof c.highlight === "object" &&
-    typeof c.highlight.added === "string" &&
-    typeof c.highlight.removed === "string" &&
+    c.highlight !== null &&
+    typeof (c.highlight as Record<string, unknown>).added === "string" &&
+    typeof (c.highlight as Record<string, unknown>).removed === "string" &&
     typeof c.threshold === "object" &&
-    typeof c.threshold.line === "number" &&
-    typeof c.threshold.char === "number" &&
+    c.threshold !== null &&
+    typeof (c.threshold as Record<string, unknown>).line === "number" &&
+    typeof (c.threshold as Record<string, unknown>).char === "number" &&
     typeof c.duration === "number" &&
     (c.debug === undefined || typeof c.debug === "boolean") &&
     (c.logFile === undefined || typeof c.logFile === "string")

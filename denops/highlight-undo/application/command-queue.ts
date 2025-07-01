@@ -7,49 +7,34 @@ export interface QueuedCommand {
   timestamp: number;
 }
 
-export class CommandQueue {
-  private queues = new Map<number, QueuedCommand[]>(); // Per-buffer queues
-  private processing = new Map<number, boolean>();
-  private commandId = 0;
-
-  /**
-   * Enqueue a command for a specific buffer
-   */
-  async enqueue(
+export interface ICommandQueue {
+  enqueue(
     bufnr: number,
     command: () => Promise<void>,
-  ): Promise<void> {
-    const id = `cmd-${++this.commandId}`;
-    const queuedCommand: QueuedCommand = {
-      id,
-      execute: command,
-      bufnr,
-      timestamp: Date.now(),
-    };
+  ): Promise<void>;
+  clearBuffer(bufnr: number): void;
+  clearAll(): void;
+  getStats(): {
+    totalQueued: number;
+    bufferCount: number;
+    processing: number[];
+  };
+}
 
-    // Get or create queue for buffer
-    const queue = this.queues.get(bufnr) || [];
-    queue.push(queuedCommand);
-    this.queues.set(bufnr, queue);
+export function createCommandQueue(): ICommandQueue {
+  const queues = new Map<number, QueuedCommand[]>();
+  const processing = new Map<number, boolean>();
+  let commandId = 0;
 
-    // Process queue if not already processing
-    if (!this.processing.get(bufnr)) {
-      await this.processQueue(bufnr);
-    }
-  }
-
-  /**
-   * Process commands in queue for a specific buffer
-   */
-  private async processQueue(bufnr: number): Promise<void> {
-    if (this.processing.get(bufnr)) {
+  async function processQueue(bufnr: number): Promise<void> {
+    if (processing.get(bufnr)) {
       return;
     }
 
-    this.processing.set(bufnr, true);
+    processing.set(bufnr, true);
 
     try {
-      const queue = this.queues.get(bufnr) || [];
+      const queue = queues.get(bufnr) || [];
 
       while (queue.length > 0) {
         const command = queue.shift()!;
@@ -68,72 +53,93 @@ export class CommandQueue {
         }
       }
     } finally {
-      this.processing.set(bufnr, false);
+      processing.set(bufnr, false);
 
       // Check if new commands were added while processing
-      const queue = this.queues.get(bufnr) || [];
+      const queue = queues.get(bufnr) || [];
       if (queue.length > 0) {
-        await this.processQueue(bufnr);
+        await processQueue(bufnr);
       }
     }
   }
 
-  /**
-   * Clear queue for a specific buffer
-   */
-  clearBuffer(bufnr: number): void {
-    this.queues.delete(bufnr);
-    this.processing.delete(bufnr);
+  async function enqueue(
+    bufnr: number,
+    command: () => Promise<void>,
+  ): Promise<void> {
+    const id = `cmd-${++commandId}`;
+    const queuedCommand: QueuedCommand = {
+      id,
+      execute: command,
+      bufnr,
+      timestamp: Date.now(),
+    };
+
+    // Get or create queue for buffer
+    const queue = queues.get(bufnr) || [];
+    queue.push(queuedCommand);
+    queues.set(bufnr, queue);
+
+    // Process queue if not already processing
+    if (!processing.get(bufnr)) {
+      await processQueue(bufnr);
+    }
   }
 
-  /**
-   * Clear all queues
-   */
-  clearAll(): void {
-    this.queues.clear();
-    this.processing.clear();
+  function clearBuffer(bufnr: number): void {
+    queues.delete(bufnr);
+    processing.delete(bufnr);
   }
 
-  /**
-   * Get queue statistics
-   */
-  getStats(): {
+  function clearAll(): void {
+    queues.clear();
+    processing.clear();
+  }
+
+  function getStats(): {
     totalQueued: number;
     bufferCount: number;
     processing: number[];
   } {
     let totalQueued = 0;
-    for (const queue of this.queues.values()) {
+    for (const queue of queues.values()) {
       totalQueued += queue.length;
     }
 
-    const processing: number[] = [];
-    for (const [bufnr, isProcessing] of this.processing.entries()) {
+    const processingBuffers: number[] = [];
+    for (const [bufnr, isProcessing] of processing.entries()) {
       if (isProcessing) {
-        processing.push(bufnr);
+        processingBuffers.push(bufnr);
       }
     }
 
     return {
       totalQueued,
-      bufferCount: this.queues.size,
-      processing,
+      bufferCount: queues.size,
+      processing: processingBuffers,
     };
   }
+
+  return {
+    enqueue,
+    clearBuffer,
+    clearAll,
+    getStats,
+  };
 }
 
-/**
- * Lock manager for preventing concurrent access to shared resources
- */
-export class LockManager {
-  private locks = new Map<string, Promise<void>>();
+export interface ILockManager {
+  acquire<T>(resource: string, fn: () => Promise<T>): Promise<T>;
+  isLocked(resource: string): boolean;
+  getLockedResources(): string[];
+}
 
-  /**
-   * Acquire a lock for a resource
-   */
-  async acquire(resource: string, fn: () => Promise<void>): Promise<void> {
+export function createLockManager(): ILockManager {
+  const locks = new Map<string, Promise<void>>();
+
+  async function acquire<T>(resource: string, fn: () => Promise<T>): Promise<T> {
     // Wait for existing lock to be released
-    const existingLock = this.locks.get(resource);
+    const existingLock = locks.get(resource);
     if (existingLock) {
       await existingLock;
     }
@@ -144,31 +150,83 @@ export class LockManager {
       releaseLock = resolve;
     });
 
-    this.locks.set(resource, lockPromise);
+    locks.set(resource, lockPromise);
 
     try {
-      await fn();
+      return await fn();
     } finally {
       releaseLock!();
 
       // Clean up if this is the current lock
-      if (this.locks.get(resource) === lockPromise) {
-        this.locks.delete(resource);
+      if (locks.get(resource) === lockPromise) {
+        locks.delete(resource);
       }
     }
   }
 
-  /**
-   * Check if a resource is locked
-   */
-  isLocked(resource: string): boolean {
-    return this.locks.has(resource);
+  function isLocked(resource: string): boolean {
+    return locks.has(resource);
   }
 
-  /**
-   * Get all locked resources
-   */
+  function getLockedResources(): string[] {
+    return Array.from(locks.keys());
+  }
+
+  return {
+    acquire,
+    isLocked,
+    getLockedResources,
+  };
+}
+
+// Backward compatibility
+export class CommandQueue implements ICommandQueue {
+  private queue: ReturnType<typeof createCommandQueue>;
+
+  constructor() {
+    this.queue = createCommandQueue();
+  }
+
+  enqueue(
+    bufnr: number,
+    command: () => Promise<void>,
+  ): Promise<void> {
+    return this.queue.enqueue(bufnr, command);
+  }
+
+  clearBuffer(bufnr: number): void {
+    this.queue.clearBuffer(bufnr);
+  }
+
+  clearAll(): void {
+    this.queue.clearAll();
+  }
+
+  getStats(): {
+    totalQueued: number;
+    bufferCount: number;
+    processing: number[];
+  } {
+    return this.queue.getStats();
+  }
+}
+
+export class LockManager implements ILockManager {
+  private manager: ReturnType<typeof createLockManager>;
+
+  constructor() {
+    this.manager = createLockManager();
+  }
+
+  acquire<T>(resource: string, fn: () => Promise<T>): Promise<T> {
+    return this.manager.acquire(resource, fn);
+  }
+
+  isLocked(resource: string): boolean {
+    return this.manager.isLocked(resource);
+  }
+
   getLockedResources(): string[] {
-    return Array.from(this.locks.keys());
+    return this.manager.getLockedResources();
   }
 }

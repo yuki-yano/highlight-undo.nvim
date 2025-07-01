@@ -1,11 +1,10 @@
-import { assertEquals, assertThrows } from "https://deno.land/std@0.173.0/testing/asserts.ts";
+import { assertEquals } from "https://deno.land/std@0.173.0/testing/asserts.ts";
 import { describe, it } from "https://deno.land/std@0.173.0/testing/bdd.ts";
-import { PerformanceMonitor } from "./performance.ts";
+import { createPerformanceMonitor, formatPerformanceMetrics } from "./performance.ts";
 
 describe("PerformanceMonitor", () => {
   it("should track performance metrics", async () => {
-    const monitor = new PerformanceMonitor();
-    monitor.start();
+    const monitor = createPerformanceMonitor();
 
     // Simulate some work
     await new Promise((resolve) => setTimeout(resolve, 10));
@@ -32,15 +31,7 @@ describe("PerformanceMonitor", () => {
     assertEquals(metrics.total >= metrics.highlightApplication, true);
   });
 
-  it("should throw if marking before start", () => {
-    const monitor = new PerformanceMonitor();
-
-    assertThrows(
-      () => monitor.mark("bufferRead"),
-      Error,
-      "PerformanceMonitor not started",
-    );
-  });
+  // This test is no longer applicable since createPerformanceMonitor starts automatically
 
   it("should format metrics correctly", () => {
     const metrics = {
@@ -50,7 +41,7 @@ describe("PerformanceMonitor", () => {
       total: 70.368,
     };
 
-    const formatted = PerformanceMonitor.format(metrics);
+    const formatted = formatPerformanceMetrics(metrics);
 
     assertEquals(
       formatted,
@@ -59,8 +50,7 @@ describe("PerformanceMonitor", () => {
   });
 
   it("should handle missing marks", () => {
-    const monitor = new PerformanceMonitor();
-    monitor.start();
+    const monitor = createPerformanceMonitor();
 
     // Only mark some metrics
     monitor.mark("bufferRead");

@@ -2,7 +2,7 @@
 
 // Script to generate Lua type definitions from TypeScript schema
 
-import { ConfigSchema } from "../denops/highlight-undo/config-schema.ts";
+import { ConfigSchema as _ConfigSchema } from "../denops/highlight-undo/config-schema.ts";
 
 const luaTypeTemplate = `-- Auto-generated from config-schema.ts
 -- DO NOT EDIT MANUALLY
@@ -36,7 +36,7 @@ const luaTypeTemplate = `-- Auto-generated from config-schema.ts
 // Write Lua types
 await Deno.writeTextFile(
   "./lua/highlight-undo/types.lua",
-  luaTypeTemplate
+  luaTypeTemplate,
 );
 
 console.log("✅ Generated Lua type definitions");
@@ -85,7 +85,7 @@ function mergeWithDefaults(userConfig: any): Config {
 
 await Deno.writeTextFile(
   "./denops/highlight-undo/config.ts",
-  configTs
+  configTs,
 );
 
 console.log("✅ Updated config.ts to use unified schema");

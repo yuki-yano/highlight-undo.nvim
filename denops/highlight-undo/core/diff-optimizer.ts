@@ -10,77 +10,19 @@ export interface DiffResult {
   };
 }
 
-export class DiffOptimizer {
-  // Cache for recent diffs
-  private cache = new Map<string, DiffResult>();
-  private maxCacheEntries = 100;
-
+export interface IDiffOptimizer {
   calculateDiff(
     before: string,
     after: string,
     threshold: { line: number; char: number },
-  ): DiffResult | null {
-    // Quick checks
-    if (before === after) {
-      return null;
-    }
+  ): DiffResult | null;
+  clearCache(): void;
+}
 
-    const cacheKey = this.getCacheKey(before, after);
-    const cached = this.cache.get(cacheKey);
-    if (cached) {
-      return cached;
-    }
+export function createDiffOptimizer(maxCacheEntries = 100): IDiffOptimizer {
+  const cache = new Map<string, DiffResult>();
 
-    // Check size threshold before calculation
-    const changeCharCount = Math.abs(before.length - after.length);
-    const changeLineCount = Math.abs(
-      before.split("\n").length - after.split("\n").length,
-    );
-
-    if (
-      changeCharCount > threshold.char ||
-      changeLineCount > threshold.line
-    ) {
-      return null;
-    }
-
-    // Optimize for common cases
-    if (this.isSimpleInsertion(before, after)) {
-      return this.handleSimpleInsertion(before, after);
-    }
-
-    if (this.isSimpleDeletion(before, after)) {
-      return this.handleSimpleDeletion(before, after);
-    }
-
-    // Full diff calculation
-    const changes = diffChars(before, after);
-    const lineChanges = diffLines(before, after);
-
-    const [above, ..._below] = lineChanges;
-    const below = _below.at(-1);
-    const aboveLine = above.count! + 1;
-
-    const belowLine = below?.count != null ? after.split("\n").length - below.count! + 1 : aboveLine;
-
-    const result: DiffResult = {
-      changes,
-      lineInfo: { aboveLine, belowLine },
-    };
-
-    // Update cache
-    this.cache.set(cacheKey, result);
-    if (this.cache.size > this.maxCacheEntries) {
-      const firstKey = this.cache.keys().next().value;
-      if (firstKey !== undefined) {
-        this.cache.delete(firstKey);
-      }
-    }
-
-    return result;
-  }
-
-  private getCacheKey(before: string, after: string): string {
+  function getCacheKey(before: string, after: string): string {
     // Simple hash for cache key
     const hash = (str: string) => {
       let h = 0;
@@ -93,15 +35,15 @@ export class DiffOptimizer {
     return `${hash(before)}_${hash(after)}`;
   }
 
-  private isSimpleInsertion(before: string, after: string): boolean {
+  function isSimpleInsertion(before: string, after: string): boolean {
     return after.startsWith(before) || after.endsWith(before);
   }
 
-  private isSimpleDeletion(before: string, after: string): boolean {
+  function isSimpleDeletion(before: string, after: string): boolean {
     return before.startsWith(after) || before.endsWith(after);
   }
 
-  private handleSimpleInsertion(before: string, after: string): DiffResult {
+  function handleSimpleInsertion(before: string, after: string): DiffResult {
     let changes: Diff.Change[];
     let position: number;
     let added: string;
@@ -131,7 +73,7 @@ export class DiffOptimizer {
     };
   }
 
-  private handleSimpleDeletion(before: string, after: string): DiffResult {
+  function handleSimpleDeletion(before: string, after: string): DiffResult {
     let changes: Diff.Change[];
     let position: number;
 
@@ -160,7 +102,98 @@ export class DiffOptimizer {
     };
   }
 
+  function calculateDiff(
+    before: string,
+    after: string,
+    threshold: { line: number; char: number },
+  ): DiffResult | null {
+    // Quick checks
+    if (before === after) {
+      return null;
+    }
+
+    const cacheKey = getCacheKey(before, after);
+    const cached = cache.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    // Check size threshold before calculation
+    const changeCharCount = Math.abs(before.length - after.length);
+    const changeLineCount = Math.abs(
+      before.split("\n").length - after.split("\n").length,
+    );
+
+    if (
+      changeCharCount > threshold.char ||
+      changeLineCount > threshold.line
+    ) {
+      return null;
+    }
+
+    // Optimize for common cases
+    if (isSimpleInsertion(before, after)) {
+      return handleSimpleInsertion(before, after);
+    }
+
+    if (isSimpleDeletion(before, after)) {
+      return handleSimpleDeletion(before, after);
+    }
+
+    // Full diff calculation
+    const changes = diffChars(before, after);
+    const lineChanges = diffLines(before, after);
+
+    const [above, ..._below] = lineChanges;
+    const below = _below.at(-1);
+    const aboveLine = above.count! + 1;
+
+    const belowLine = below?.count != null ? after.split("\n").length - below.count! + 1 : aboveLine;
+
+    const result: DiffResult = {
+      changes,
+      lineInfo: { aboveLine, belowLine },
+    };
+
+    // Update cache
+    cache.set(cacheKey, result);
+    if (cache.size > maxCacheEntries) {
+      const firstKey = cache.keys().next().value;
+      if (firstKey !== undefined) {
+        cache.delete(firstKey);
+      }
+    }
+
+    return result;
+  }
+
+  function clearCache(): void {
+    cache.clear();
+  }
+
+  return {
+    calculateDiff,
+    clearCache,
+  };
+}
+
+// Backward compatibility
+export class DiffOptimizer implements IDiffOptimizer {
+  private optimizer: ReturnType<typeof createDiffOptimizer>;
+
+  constructor() {
+    this.optimizer = createDiffOptimizer();
+  }
+
+  calculateDiff(
+    before: string,
+    after: string,
+    threshold: { line: number; char: number },
+  ): DiffResult | null {
+    return this.optimizer.calculateDiff(before, after, threshold);
+  }
+
   clearCache(): void {
-    this.cache.clear();
+    this.optimizer.clearCache();
   }
 }

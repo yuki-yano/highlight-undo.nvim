@@ -1,4 +1,4 @@
-import { assertEquals, assertNotEquals } from "https://deno.land/std@0.173.0/testing/asserts.ts";
+import { assertEquals } from "https://deno.land/std@0.173.0/testing/asserts.ts";
 import { describe, it } from "https://deno.land/std@0.173.0/testing/bdd.ts";
 import { stub } from "https://deno.land/std@0.173.0/testing/mock.ts";
 import type { Denops } from "./deps.ts";
@@ -20,7 +20,7 @@ describe("main.ts", () => {
     });
 
     it("should handle only additions", () => {
-      const changes = [
+      const changes: Array<{ value: string; count: number; added?: boolean; removed?: boolean }> = [
         { value: "hello", count: 5 },
         { value: " world", added: true, count: 6 },
       ];
@@ -33,7 +33,7 @@ describe("main.ts", () => {
     });
 
     it("should handle only removals", () => {
-      const changes = [
+      const changes: Array<{ value: string; count: number; added?: boolean; removed?: boolean }> = [
         { value: "hello", count: 5 },
         { value: " world", removed: true, count: 6 },
       ];
@@ -46,7 +46,7 @@ describe("main.ts", () => {
     });
 
     it("should handle no changes", () => {
-      const changes = [
+      const changes: Array<{ value: string; count: number; added?: boolean; removed?: boolean }> = [
         { value: "hello world", count: 11 },
       ];
 
@@ -81,18 +81,24 @@ describe("main.ts", () => {
       const bufnr = 42;
       const nameSpace = 1;
 
-      // Mock highlightBatcher
-      const mockClearHighlights = stub(
-        {},
-        "clearHighlights",
-        async (_denops: unknown, _nameSpace: number, _bufnr?: number) => {
+      // Create a mock object with clearHighlights method
+      const mockHighlightBatcher = {
+        clearHighlights: (_denops: unknown, _nameSpace: number, _bufnr?: number) => {
           assertEquals(_nameSpace, nameSpace);
           assertEquals(_bufnr, bufnr);
+          return Promise.resolve();
         },
+      };
+
+      // Stub the clearHighlights method
+      const mockClearHighlights = stub(
+        mockHighlightBatcher,
+        "clearHighlights",
+        mockHighlightBatcher.clearHighlights,
       );
 
-      // Call the mock
-      await mockClearHighlights.clearHighlights({} as Denops, nameSpace, bufnr);
+      // Call the mocked function
+      await mockHighlightBatcher.clearHighlights({} as Denops, nameSpace, bufnr);
 
       assertEquals(mockClearHighlights.calls.length, 1);
       mockClearHighlights.restore();

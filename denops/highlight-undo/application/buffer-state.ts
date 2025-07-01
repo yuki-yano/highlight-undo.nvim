@@ -7,15 +7,34 @@ interface BufferData {
   size: number;
 }
 
-export class BufferStateManager {
-  private buffers = new Map<number, BufferData>();
-  private maxCacheSize = 10 * 1024 * 1024; // 10MB max cache
-  private currentCacheSize = 0;
+// Interface for buffer state management
+export interface IBufferStateManager {
+  set(bufnr: number, preCode: string, postCode: string): void;
+  get(bufnr: number): { preCode: string; postCode: string } | null;
+  clear(bufnr: number): void;
+  clearAll(): void;
+  getStats(): { bufferCount: number; cacheSize: number; maxCacheSize: number };
+}
 
-  set(bufnr: number, preCode: string, postCode: string): void {
-    const oldData = this.buffers.get(bufnr);
+export function createBufferStateManager(maxCacheSize = 10 * 1024 * 1024): IBufferStateManager {
+  const buffers = new Map<number, BufferData>();
+  let currentCacheSize = 0;
+
+  function evictOldEntries(): void {
+    // Sort by last modified time and remove oldest entries
+    const entries = Array.from(buffers.entries())
+      .sort((a, b) => a[1].lastModified - b[1].lastModified);
+
+    while (currentCacheSize > maxCacheSize * 0.8 && entries.length > 0) {
+      const [bufnr] = entries.shift()!;
+      clear(bufnr);
+    }
+  }
+
+  function set(bufnr: number, preCode: string, postCode: string): void {
+    const oldData = buffers.get(bufnr);
     if (oldData) {
-      this.currentCacheSize -= oldData.size;
+      currentCacheSize -= oldData.size;
     }
 
     const size = preCode.length + postCode.length;
@@ -26,17 +45,17 @@ export class BufferStateManager {
       size,
     };
 
-    this.buffers.set(bufnr, data);
-    this.currentCacheSize += size;
+    buffers.set(bufnr, data);
+    currentCacheSize += size;
 
     // Evict old entries if cache is too large
-    if (this.currentCacheSize > this.maxCacheSize) {
-      this.evictOldEntries();
+    if (currentCacheSize > maxCacheSize) {
+      evictOldEntries();
     }
   }
 
-  get(bufnr: number): { preCode: string; postCode: string } | null {
-    const data = this.buffers.get(bufnr);
+  function get(bufnr: number): { preCode: string; postCode: string } | null {
+    const data = buffers.get(bufnr);
     if (!data) {
       return null;
     }
@@ -46,35 +65,61 @@ export class BufferStateManager {
     return { preCode: data.preCode, postCode: data.postCode };
   }
 
-  clear(bufnr: number): void {
-    const data = this.buffers.get(bufnr);
+  function clear(bufnr: number): void {
+    const data = buffers.get(bufnr);
     if (data) {
-      this.currentCacheSize -= data.size;
-      this.buffers.delete(bufnr);
+      currentCacheSize -= data.size;
+      buffers.delete(bufnr);
     }
+  }
+
+  function clearAll(): void {
+    buffers.clear();
+    currentCacheSize = 0;
+  }
+
+  function getStats() {
+    return {
+      bufferCount: buffers.size,
+      cacheSize: currentCacheSize,
+      maxCacheSize,
+    };
+  }
+
+  return {
+    set,
+    get,
+    clear,
+    clearAll,
+    getStats,
+  };
+}
+
+// Export class for backward compatibility
+export class BufferStateManager implements IBufferStateManager {
+  private manager: ReturnType<typeof createBufferStateManager>;
+
+  constructor() {
+    this.manager = createBufferStateManager();
+  }
+
+  set(bufnr: number, preCode: string, postCode: string): void {
+    this.manager.set(bufnr, preCode, postCode);
+  }
+
+  get(bufnr: number): { preCode: string; postCode: string } | null {
+    return this.manager.get(bufnr);
+  }
+
+  clear(bufnr: number): void {
+    this.manager.clear(bufnr);
   }
 
   clearAll(): void {
-    this.buffers.clear();
-    this.currentCacheSize = 0;
-  }
-
-  private evictOldEntries(): void {
-    // Sort by last modified time and remove oldest entries
-    const entries = Array.from(this.buffers.entries())
-      .sort((a, b) => a[1].lastModified - b[1].lastModified);
-
-    while (this.currentCacheSize > this.maxCacheSize * 0.8 && entries.length > 0) {
-      const [bufnr] = entries.shift()!;
-      this.clear(bufnr);
-    }
+    this.manager.clearAll();
   }
 
   getStats(): { bufferCount: number; cacheSize: number; maxCacheSize: number } {
-    return {
-      bufferCount: this.buffers.size,
-      cacheSize: this.currentCacheSize,
-      maxCacheSize: this.maxCacheSize,
-    };
+    return this.manager.getStats();
   }
 }

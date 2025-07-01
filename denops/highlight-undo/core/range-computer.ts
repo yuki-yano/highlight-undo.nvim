@@ -13,182 +13,176 @@ export type Range = {
   changeType: ChangeType;
 };
 
-export class RangeComputer {
-  computeRanges({
-    changes,
-    afterCode,
-    changeType,
-  }: {
-    changes: Array<Diff.Change>;
-    beforeCode: string;
-    afterCode: string;
-    changeType: ChangeType;
-  }): ReadonlyArray<Range> {
-    let codeIndex = 0;
-    let ranges: ReadonlyArray<Range> = [];
-    
+// Helper functions
+function getLineNumber(code: string, index: number): number {
+  return code.substring(0, index).split("\n").length;
+}
 
-    for (const change of changes) {
-      if (change[changeType]) {
-        ranges = [...ranges, ...this.processChange(change, afterCode, codeIndex, changeType)];
-      }
+function getStartPositionInLine(code: string, index: number): number {
+  return code.substring(0, index).lastIndexOf("\n");
+}
 
-      // Update index based on change type
-      if (changeType === "added") {
-        // For added changes, only advance index for non-removed changes
-        if (!change.removed) {
-          codeIndex += change.value.length;
-        }
-      } else {
-        // For removed changes, advance for all non-added changes
-        if (!change.added) {
-          codeIndex += change.value.length;
-        }
-      }
-    }
+function getFirstLineStartColumn(codeIndex: number, startPosInCurrentLine: number): number {
+  return startPosInCurrentLine === -1 ? codeIndex : codeIndex - startPosInCurrentLine - 1;
+}
 
-    return ranges;
+function getColumnPosition(codeIndex: number, startPosInCurrentLine: number): number {
+  return startPosInCurrentLine === -1 ? codeIndex : codeIndex - startPosInCurrentLine - 1;
+}
+
+function createRange({
+  lnum,
+  lineText,
+  text,
+  isFirstLine,
+  firstLineStartCol,
+  changeType,
+}: {
+  lnum: number;
+  lineText: string;
+  text: string;
+  isFirstLine: boolean;
+  firstLineStartCol: number;
+  changeType: ChangeType;
+}): Range | null {
+  if (text === "") {
+    return null;
   }
 
-  private processChange(
-    change: Diff.Change,
-    afterCode: string,
-    codeIndex: number,
-    changeType: ChangeType,
-  ): ReadonlyArray<Range> {
-    const ranges: Range[] = [];
+  const col = isFirstLine
+    ? { start: firstLineStartCol, end: firstLineStartCol + text.length }
+    : { start: 0, end: text.length };
 
-    if (change.value.includes("\n")) {
-      return this.processMultiLineChange(change, afterCode, codeIndex, changeType);
-    } else {
-      return this.processSingleLineChange(change, afterCode, codeIndex, changeType);
-    }
-  }
-
-  private processMultiLineChange(
-    change: Diff.Change,
-    afterCode: string,
-    codeIndex: number,
-    changeType: ChangeType,
-  ): ReadonlyArray<Range> {
-    const ranges: Range[] = [];
-    let lnum = this.getLineNumber(afterCode, codeIndex);
-    const startPosInCurrentLine = this.getStartPositionInLine(afterCode, codeIndex);
-    const firstLineStartCol = this.getFirstLineStartColumn(codeIndex, startPosInCurrentLine);
-
-    const splitLines = change.value.split("\n");
-    let isFirstLine = true;
-
-    for (let i = 0; i < splitLines.length; i++) {
-      const text = splitLines[i];
-      const lines = afterCode.split("\n");
-      const currentLineText = changeType === "removed" && !lines[lnum - 1] ? "" : lines[lnum - 1] || "";
-
-      if (i === splitLines.length - 1 && text === "") {
-        // Skip empty last line
-        continue;
-      }
-
-      const range = this.createRange({
-        lnum,
-        lineText: currentLineText,
-        text,
-        isFirstLine,
-        firstLineStartCol,
-        changeType,
-      });
-
-      if (range) {
-        ranges.push(range);
-      }
-
-      lnum++;
-      isFirstLine = false;
-    }
-
-    return ranges;
-  }
-
-  private processSingleLineChange(
-    change: Diff.Change,
-    afterCode: string,
-    codeIndex: number,
-    changeType: ChangeType,
-  ): ReadonlyArray<Range> {
-    const lnum = this.getLineNumber(afterCode, codeIndex);
-    const lines = afterCode.split("\n");
-    const currentLineText = changeType === "removed" && !lines[lnum - 1] ? "" : lines[lnum - 1] || "";
-    const startPosInCurrentLine = this.getStartPositionInLine(afterCode, codeIndex);
-    const col = this.getColumnPosition(codeIndex, startPosInCurrentLine);
-
-    return [{
-      lnum,
-      lineText: currentLineText,
-      col: {
-        start: col,
-        end: col + change.value.length,
-      },
-      matchText: change.value,
-      changeType,
-    }];
-  }
-
-  private createRange({
+  return {
     lnum,
     lineText,
-    text,
-    isFirstLine,
-    firstLineStartCol,
+    col,
+    matchText: text,
     changeType,
-  }: {
-    lnum: number;
-    lineText: string;
-    text: string;
-    isFirstLine: boolean;
-    firstLineStartCol: number;
-    changeType: ChangeType;
-  }): Range | null {
-    if (text === "") {
-      return null;
+  };
+}
+
+function processMultiLineChange(
+  change: Diff.Change,
+  afterCode: string,
+  codeIndex: number,
+  changeType: ChangeType,
+): ReadonlyArray<Range> {
+  const ranges: Range[] = [];
+  let lnum = getLineNumber(afterCode, codeIndex);
+  const startPosInCurrentLine = getStartPositionInLine(afterCode, codeIndex);
+  const firstLineStartCol = getFirstLineStartColumn(codeIndex, startPosInCurrentLine);
+
+  const splitLines = change.value.split("\n");
+  let isFirstLine = true;
+
+  for (let i = 0; i < splitLines.length; i++) {
+    const text = splitLines[i];
+    const lines = afterCode.split("\n");
+    const currentLineText = changeType === "removed" && !lines[lnum - 1] ? "" : lines[lnum - 1] || "";
+
+    if (i === splitLines.length - 1 && text === "") {
+      // Skip empty last line
+      continue;
     }
 
-    const col = isFirstLine
-      ? { start: firstLineStartCol, end: firstLineStartCol + text.length }
-      : { start: 0, end: text.length };
-
-    return {
+    const range = createRange({
       lnum,
-      lineText,
-      col,
-      matchText: text,
+      lineText: currentLineText,
+      text,
+      isFirstLine,
+      firstLineStartCol,
       changeType,
-    };
+    });
+
+    if (range) {
+      ranges.push(range);
+    }
+
+    lnum++;
+    isFirstLine = false;
   }
 
-  private getLineNumber(code: string, index: number): number {
-    return code.substring(0, index).split("\n").length;
-  }
+  return ranges;
+}
 
-  private getStartPositionInLine(code: string, index: number): number {
-    return code.substring(0, index).lastIndexOf("\n");
-  }
+function processSingleLineChange(
+  change: Diff.Change,
+  afterCode: string,
+  codeIndex: number,
+  changeType: ChangeType,
+): ReadonlyArray<Range> {
+  const lnum = getLineNumber(afterCode, codeIndex);
+  const lines = afterCode.split("\n");
+  const currentLineText = changeType === "removed" && !lines[lnum - 1] ? "" : lines[lnum - 1] || "";
+  const startPosInCurrentLine = getStartPositionInLine(afterCode, codeIndex);
+  const col = getColumnPosition(codeIndex, startPosInCurrentLine);
 
-  private getFirstLineStartColumn(codeIndex: number, startPosInCurrentLine: number): number {
-    return startPosInCurrentLine === -1 ? codeIndex : codeIndex - startPosInCurrentLine - 1;
-  }
+  return [{
+    lnum,
+    lineText: currentLineText,
+    col: {
+      start: col,
+      end: col + change.value.length,
+    },
+    matchText: change.value,
+    changeType,
+  }];
+}
 
-  private getColumnPosition(codeIndex: number, startPosInCurrentLine: number): number {
-    return startPosInCurrentLine === -1 ? codeIndex : codeIndex - startPosInCurrentLine - 1;
+function processChange(
+  change: Diff.Change,
+  afterCode: string,
+  codeIndex: number,
+  changeType: ChangeType,
+): ReadonlyArray<Range> {
+  if (change.value.includes("\n")) {
+    return processMultiLineChange(change, afterCode, codeIndex, changeType);
+  } else {
+    return processSingleLineChange(change, afterCode, codeIndex, changeType);
   }
 }
 
-// Re-export for backward compatibility
 export function computeRanges(params: {
   changes: Array<Diff.Change>;
   beforeCode: string;
   afterCode: string;
   changeType: ChangeType;
 }): ReadonlyArray<Range> {
-  const computer = new RangeComputer();
-  return computer.computeRanges(params);
+  const { changes, afterCode, changeType } = params;
+  let codeIndex = 0;
+  let ranges: ReadonlyArray<Range> = [];
+
+  for (const change of changes) {
+    if (change[changeType]) {
+      ranges = [...ranges, ...processChange(change, afterCode, codeIndex, changeType)];
+    }
+
+    // Update index based on change type
+    if (changeType === "added") {
+      // For added changes, only advance index for non-removed changes
+      if (!change.removed) {
+        codeIndex += change.value.length;
+      }
+    } else {
+      // For removed changes, advance for all non-added changes
+      if (!change.added) {
+        codeIndex += change.value.length;
+      }
+    }
+  }
+
+  return ranges;
+}
+
+// Backward compatibility class wrapper
+export class RangeComputer {
+  computeRanges(params: {
+    changes: Array<Diff.Change>;
+    beforeCode: string;
+    afterCode: string;
+    changeType: ChangeType;
+  }): ReadonlyArray<Range> {
+    return computeRanges(params);
+  }
 }

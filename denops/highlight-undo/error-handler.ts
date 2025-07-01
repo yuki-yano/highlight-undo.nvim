@@ -27,45 +27,25 @@ export class HighlightUndoError extends Error {
   }
 }
 
-export class ErrorHandler {
-  private logFile?: string;
-  private debugMode = false;
-
-  constructor(debugMode: boolean = false, logFile?: string) {
-    this.debugMode = debugMode;
-    this.logFile = logFile;
-  }
-
-  setDebugMode(enabled: boolean): void {
-    this.debugMode = enabled;
-  }
-
-  setLogFile(path?: string): void {
-    this.logFile = path;
-  }
-
-  async handle(
+export interface IErrorHandler {
+  setDebugMode(enabled: boolean): void;
+  setLogFile(path?: string): void;
+  handle(
     denops: Denops,
     error: unknown,
     context: ErrorContext,
-  ): Promise<void> {
-    const errorMessage = this.formatError(error, context);
+  ): Promise<void>;
+  wrap<T extends unknown[], R>(
+    fn: (...args: T) => Promise<R>,
+    context: Partial<ErrorContext>,
+  ): (...args: T) => Promise<R | null>;
+}
 
-    // Always log to Neovim
-    await this.notifyUser(denops, error, context);
+export function createErrorHandler(debugMode = false, logFile?: string): IErrorHandler {
+  let debug = debugMode;
+  let logFilePath = logFile;
 
-    // Log to file if in debug mode
-    if (this.debugMode && this.logFile) {
-      await this.logToFile(errorMessage);
-    }
-
-    // Log to console in debug mode
-    if (this.debugMode) {
-      console.error("[highlight-undo]", errorMessage);
-    }
-  }
-
-  private formatError(error: unknown, context: ErrorContext): string {
+  function formatError(error: unknown, context: ErrorContext): string {
     const timestamp = new Date().toISOString();
     const errorMessage = error instanceof Error ? error.message : String(error);
     const stack = error instanceof Error ? error.stack : undefined;
@@ -80,25 +60,25 @@ export class ErrorHandler {
     return formatted;
   }
 
-  private async notifyUser(
+  async function notifyUser(
     denops: Denops,
     error: unknown,
     context: ErrorContext,
   ): Promise<void> {
-    const level = this.getErrorLevel(error);
+    const level = getErrorLevel(error);
     const message = error instanceof Error ? error.message : String(error);
 
     try {
       if (level === ErrorLevel.Error) {
         // Show error message to user
         await denops.call("nvim_err_writeln", `highlight-undo: ${message}`);
-      } else if (level === ErrorLevel.Warn && this.debugMode) {
+      } else if (level === ErrorLevel.Warn && debug) {
         // Show warning in debug mode
         await denops.cmd(`echohl WarningMsg | echo "highlight-undo: ${message}" | echohl None`);
       }
 
       // Log detailed info in debug mode
-      if (this.debugMode && context.phase) {
+      if (debug && context.phase) {
         await denops.call(
           "nvim_echo",
           [
@@ -115,19 +95,19 @@ export class ErrorHandler {
     }
   }
 
-  private async logToFile(message: string): Promise<void> {
-    if (!this.logFile) return;
+  async function logToFile(message: string): Promise<void> {
+    if (!logFilePath) return;
 
     try {
       const encoder = new TextEncoder();
       const data = encoder.encode(message + "\n---\n");
-      await Deno.writeFile(this.logFile, data, { append: true, create: true });
+      await Deno.writeFile(logFilePath, data, { append: true, create: true });
     } catch (error) {
       console.error("Failed to write to log file:", error);
     }
   }
 
-  private getErrorLevel(error: unknown): ErrorLevel {
+  function getErrorLevel(error: unknown): ErrorLevel {
     if (error instanceof HighlightUndoError) {
       // Determine level based on error type
       if (error.message.includes("threshold exceeded")) {
@@ -138,8 +118,28 @@ export class ErrorHandler {
     return ErrorLevel.Error;
   }
 
-  // Wrap async functions with error handling
-  wrap<T extends unknown[], R>(
+  async function handle(
+    denops: Denops,
+    error: unknown,
+    context: ErrorContext,
+  ): Promise<void> {
+    const errorMessage = formatError(error, context);
+
+    // Always log to Neovim
+    await notifyUser(denops, error, context);
+
+    // Log to file if in debug mode
+    if (debug && logFilePath) {
+      await logToFile(errorMessage);
+    }
+
+    // Log to console in debug mode
+    if (debug) {
+      console.error("[highlight-undo]", errorMessage);
+    }
+  }
+
+  function wrap<T extends unknown[], R>(
     fn: (...args: T) => Promise<R>,
     context: Partial<ErrorContext> = {},
   ): (...args: T) => Promise<R | null> {
@@ -155,5 +155,50 @@ export class ErrorHandler {
         );
       }
     };
+  }
+
+  return {
+    setDebugMode(enabled: boolean): void {
+      debug = enabled;
+    },
+
+    setLogFile(path?: string): void {
+      logFilePath = path;
+    },
+
+    handle,
+    wrap,
+  };
+}
+
+// Backward compatibility
+export class ErrorHandler implements IErrorHandler {
+  private handler: ReturnType<typeof createErrorHandler>;
+
+  constructor(debugMode: boolean = false, logFile?: string) {
+    this.handler = createErrorHandler(debugMode, logFile);
+  }
+
+  setDebugMode(enabled: boolean): void {
+    this.handler.setDebugMode(enabled);
+  }
+
+  setLogFile(path?: string): void {
+    this.handler.setLogFile(path);
+  }
+
+  handle(
+    denops: Denops,
+    error: unknown,
+    context: ErrorContext,
+  ): Promise<void> {
+    return this.handler.handle(denops, error, context);
+  }
+
+  wrap<T extends unknown[], R>(
+    fn: (...args: T) => Promise<R>,
+    context: Partial<ErrorContext> = {},
+  ): (...args: T) => Promise<R | null> {
+    return this.handler.wrap(fn, context);
   }
 }
