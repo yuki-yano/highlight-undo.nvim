@@ -130,6 +130,9 @@ function M.clear_cache()
   vim.fn['highlight_undo#notify']('clearCache', {})
 end
 
+-- Debug commands
+M.debug = require('highlight-undo.debug')
+
 -- Internal function for highlight application (called from TypeScript)
 function M._apply_highlights(namespace, highlight_group, ranges)
   local highlighter = require('highlight-undo.highlighter')
