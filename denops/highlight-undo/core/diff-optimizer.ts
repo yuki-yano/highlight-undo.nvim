@@ -1,6 +1,6 @@
 // Optimized diff calculation
 
-import { Diff, diffChars, diffLines } from "./deps.ts";
+import { Diff, diffChars, diffLines } from "../deps.ts";
 
 export interface DiffResult {
   changes: Diff.Change[];

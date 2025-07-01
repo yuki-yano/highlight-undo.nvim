@@ -1,7 +1,7 @@
 // Batch highlight operations for better performance
 
-import type { Denops } from "./deps.ts";
-import type { Range } from "./utils.ts";
+import type { Denops } from "../deps.ts";
+import type { Range } from "../core/utils.ts";
 
 export class HighlightBatcher {
   async applyHighlights(
@@ -33,6 +33,7 @@ export class HighlightBatcher {
         });
       }
     }
+    
 
     // Call Lua function to apply highlights
     try {
@@ -52,6 +53,7 @@ export class HighlightBatcher {
     nameSpace: number,
     bufnr: number = 0,
   ): Promise<void> {
+    
     try {
       await denops.call(
         "luaeval",
