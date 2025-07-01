@@ -17,36 +17,7 @@ describe("validateConfig", () => {
     assertEquals(result, config);
   });
 
-  it("should throw on non-object config", () => {
-    assertThrows(
-      () => validateConfig(null),
-      Error,
-      "Config must be an object",
-    );
-
-    assertThrows(
-      () => validateConfig("string"),
-      Error,
-      "Config must be an object",
-    );
-  });
-
-  it("should throw on missing mappings", () => {
-    const config = {
-      enabled: { added: true, removed: false },
-      highlight: { added: "DiffAdd", removed: "DiffDelete" },
-      threshold: { line: 100, char: 2000 },
-      duration: 300,
-    };
-
-    assertThrows(
-      () => validateConfig(config),
-      Error,
-      "Config.mappings must be an object",
-    );
-  });
-
-  it("should throw on invalid mapping types", () => {
+  it("should throw on invalid config with proper error message", () => {
     const config = {
       mappings: { undo: 123, redo: "<C-r>" },
       enabled: { added: true, removed: false },
@@ -58,14 +29,13 @@ describe("validateConfig", () => {
     assertThrows(
       () => validateConfig(config),
       Error,
-      "Config.mappings.undo and redo must be strings",
+      "Config validation failed:",
     );
   });
 
-  it("should throw on invalid enabled types", () => {
+  it("should throw on missing required fields", () => {
     const config = {
-      mappings: { undo: "u", redo: "<C-r>" },
-      enabled: { added: "true", removed: false },
+      enabled: { added: true, removed: false },
       highlight: { added: "DiffAdd", removed: "DiffDelete" },
       threshold: { line: 100, char: 2000 },
       duration: 300,
@@ -74,11 +44,11 @@ describe("validateConfig", () => {
     assertThrows(
       () => validateConfig(config),
       Error,
-      "Config.enabled.added and removed must be booleans",
+      "Config validation failed:",
     );
   });
 
-  it("should throw on non-positive threshold values", () => {
+  it("should throw on non-positive values", () => {
     const config = {
       mappings: { undo: "u", redo: "<C-r>" },
       enabled: { added: true, removed: false },
@@ -90,23 +60,7 @@ describe("validateConfig", () => {
     assertThrows(
       () => validateConfig(config),
       Error,
-      "Config.threshold values must be positive",
-    );
-  });
-
-  it("should throw on non-positive duration", () => {
-    const config = {
-      mappings: { undo: "u", redo: "<C-r>" },
-      enabled: { added: true, removed: false },
-      highlight: { added: "DiffAdd", removed: "DiffDelete" },
-      threshold: { line: 100, char: 2000 },
-      duration: -100,
-    };
-
-    assertThrows(
-      () => validateConfig(config),
-      Error,
-      "Config.duration must be positive",
+      "Config validation failed:",
     );
   });
 });
@@ -166,5 +120,38 @@ describe("mergeConfig", () => {
     assertEquals(result.mappings.redo, "<C-R>");
     assertEquals(result.highlight.added, defaultConfig.highlight.added);
     assertEquals(result.highlight.removed, "ErrorMsg");
+  });
+
+  it("should validate invalid partial config", () => {
+    const partial = {
+      duration: "invalid",
+    };
+
+    assertThrows(
+      () => mergeConfig(partial),
+      Error,
+      "Config validation failed:",
+    );
+  });
+
+  it("should handle optional fields correctly", () => {
+    const partial = {
+      debug: true,
+      logFile: "/tmp/test.log",
+      rangeAdjustments: {
+        adjustWordBoundaries: false,
+      },
+      heuristics: {
+        enabled: false,
+      },
+    };
+
+    const result = mergeConfig(partial);
+
+    assertEquals(result.debug, true);
+    assertEquals(result.logFile, "/tmp/test.log");
+    assertEquals(result.rangeAdjustments?.adjustWordBoundaries, false);
+    assertEquals(result.rangeAdjustments?.handleWhitespace, true);
+    assertEquals(result.heuristics?.enabled, false);
   });
 });

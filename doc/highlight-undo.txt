@@ -1,0 +1,254 @@
+*highlight-undo.txt*  Visualize undo/redo operations with highlights
+
+Author:  Yuki Yano
+License: MIT License
+Version: 1.0.0
+
+This plugin requires Neovim >= 0.8.0 and denops.vim
+
+==============================================================================
+CONTENTS                                              *highlight-undo-contents*
+
+Introduction.............................|highlight-undo-introduction|
+Requirements.............................|highlight-undo-requirements|
+Installation.............................|highlight-undo-installation|
+Usage....................................|highlight-undo-usage|
+Configuration............................|highlight-undo-configuration|
+Commands.................................|highlight-undo-commands|
+Debug Commands...........................|highlight-undo-debug-commands|
+Troubleshooting..........................|highlight-undo-troubleshooting|
+
+==============================================================================
+INTRODUCTION                                      *highlight-undo-introduction*
+
+highlight-undo.nvim is a Neovim plugin that visualizes undo/redo operations
+by highlighting the text differences. When you undo or redo changes, this
+plugin will temporarily highlight what was added or removed, making it easy
+to see exactly what changed.
+
+Key features:
+- Visual feedback for undo/redo operations
+- High performance with optimized diff algorithms
+- Full support for multi-byte characters (CJK, emojis)
+- Customizable highlight colors and duration
+- Smart thresholds to skip highlighting massive changes
+- Heuristic display strategies for intuitive visualization
+
+==============================================================================
+REQUIREMENTS                                      *highlight-undo-requirements*
+
+- Neovim >= 0.8.0
+- denops.vim (https://github.com/vim-denops/denops.vim)
+- Deno (required by denops.vim)
+
+==============================================================================
+INSTALLATION                                      *highlight-undo-installation*
+
+Using lazy.nvim:
+>lua
+  {
+    'yuki-yano/highlight-undo.nvim',
+    dependencies = {
+      'vim-denops/denops.vim',
+    },
+    config = function()
+      require('highlight-undo').setup({})
+    end,
+  }
+<
+
+Using packer.nvim:
+>lua
+  use {
+    'yuki-yano/highlight-undo.nvim',
+    requires = {
+      'vim-denops/denops.vim',
+    },
+    config = function()
+      require('highlight-undo').setup({})
+    end,
+  }
+<
+
+==============================================================================
+USAGE                                                    *highlight-undo-usage*
+
+Once installed and configured, the plugin automatically works with your normal
+undo/redo operations. By default:
+
+- Press `u` to undo with highlighting
+- Press `<C-r>` to redo with highlighting
+
+The highlights will appear briefly to show what changed, then fade away.
+
+==============================================================================
+CONFIGURATION                                    *highlight-undo-configuration*
+
+Call `require('highlight-undo').setup()` with your configuration:
+
+>lua
+  require('highlight-undo').setup({
+    -- Key mappings
+    mappings = {
+      undo = 'u',      -- Key for undo with highlight
+      redo = '<C-r>',  -- Key for redo with highlight
+    },
+    
+    -- What to highlight
+    enabled = {
+      added = true,    -- Highlight added text
+      removed = true,  -- Highlight removed text
+    },
+    
+    -- Highlight groups
+    highlight = {
+      added = 'DiffAdd',      -- Highlight group for added text
+      removed = 'DiffDelete', -- Highlight group for removed text
+    },
+    
+    -- Performance thresholds
+    threshold = {
+      line = 50,     -- Skip highlighting if more than 50 lines changed
+      char = 1500,   -- Skip highlighting if more than 1500 characters changed
+    },
+    
+    -- Highlight duration
+    duration = 200,  -- Duration in milliseconds
+    
+    -- Debug mode
+    debug = false,   -- Enable debug logging
+    
+    -- Range adjustments
+    rangeAdjustments = {
+      adjustWordBoundaries = true,  -- Expand to word boundaries
+      handleWhitespace = true,      -- Special whitespace handling
+    },
+    
+    -- Heuristic display strategies
+    heuristics = {
+      enabled = true,
+      thresholds = {
+        tiny = 5,     -- Changes <= 5 chars
+        small = 20,   -- Changes <= 20 chars
+        medium = 100, -- Changes <= 100 chars
+      },
+      strategies = {
+        tiny = "character",   -- Show exact changes
+        small = "word",      -- Expand to words
+        medium = "line",     -- Highlight lines
+        large = "block",     -- Highlight blocks
+      },
+    },
+  })
+<
+
+                                              *highlight-undo-config-mappings*
+mappings~
+    Defines the key mappings for undo and redo operations.
+
+                                               *highlight-undo-config-enabled*
+enabled~
+    Controls what types of changes to highlight.
+    - `added`: Highlight text that was added
+    - `removed`: Highlight text that was removed
+
+                                             *highlight-undo-config-highlight*
+highlight~
+    Specifies the highlight groups to use. You can use built-in groups like
+    'DiffAdd' and 'DiffDelete', or define custom highlight groups.
+
+                                             *highlight-undo-config-threshold*
+threshold~
+    Performance thresholds to prevent highlighting massive changes.
+    - `line`: Maximum number of changed lines to highlight
+    - `char`: Maximum number of changed characters to highlight
+
+                                              *highlight-undo-config-duration*
+duration~
+    How long (in milliseconds) the highlights should remain visible.
+
+                                                 *highlight-undo-config-debug*
+debug~
+    Enable debug logging for troubleshooting issues.
+
+                                     *highlight-undo-config-rangeAdjustments*
+rangeAdjustments~
+    Fine-tune how highlights are displayed:
+    - `adjustWordBoundaries`: Expand character changes to word boundaries
+    - `handleWhitespace`: Special handling for whitespace changes
+
+                                            *highlight-undo-config-heuristics*
+heuristics~
+    Adaptive display strategies based on change size:
+    - `enabled`: Enable/disable heuristic strategies
+    - `thresholds`: Size boundaries for different strategies
+    - `strategies`: Display method for each size category
+
+==============================================================================
+COMMANDS                                              *highlight-undo-commands*
+
+                                                         *:HighlightUndoEnable*
+:lua require('highlight-undo').enable()
+    Enable highlight-undo if it was disabled.
+
+                                                        *:HighlightUndoDisable*
+:lua require('highlight-undo').disable()
+    Temporarily disable highlight-undo.
+
+                                                         *:HighlightUndoToggle*
+:lua require('highlight-undo').toggle()
+    Toggle highlight-undo on/off.
+
+==============================================================================
+DEBUG COMMANDS                                  *highlight-undo-debug-commands*
+
+                                                    *:HighlightUndoDebugStats*
+:lua require('highlight-undo').debug.get_stats()
+    Display performance statistics and cache information.
+
+                                                   *:HighlightUndoDebugClearCache*
+:lua require('highlight-undo').debug.clear_cache()
+    Clear all buffer caches. Useful if you suspect cache issues.
+
+                                                  *:HighlightUndoDebugEnable*
+:lua require('highlight-undo').debug.enable_debug()
+    Enable debug logging at runtime.
+
+                                                 *:HighlightUndoDebugDisable*
+:lua require('highlight-undo').debug.disable_debug()
+    Disable debug logging at runtime.
+
+                                                  *:HighlightUndoDebugConfig*
+:lua require('highlight-undo').debug.show_config()
+    Display the current configuration.
+
+==============================================================================
+TROUBLESHOOTING                                *highlight-undo-troubleshooting*
+
+                                            *highlight-undo-no-highlights*
+Highlights not appearing~
+1. Check if denops.vim is running: `:echo denops#server#status()`
+2. Enable debug mode to see detailed logs
+3. Check if the change exceeds the configured thresholds
+
+                                           *highlight-undo-performance-issues*
+Performance issues~
+1. Increase the threshold values for large files
+2. Check cache statistics with `get_stats()`
+3. Clear cache if necessary with `clear_cache()`
+
+                                              *highlight-undo-encoding-issues*
+Multi-byte character issues~
+The plugin should handle Unicode correctly. If you experience issues:
+1. Check your file encoding: `:set fileencoding?`
+2. Enable debug mode to see character position conversions
+
+                                                   *highlight-undo-debug-logs*
+Debug logs~
+When debug mode is enabled, logs are written to:
+  `~/.local/share/nvim/highlight-undo.log` (default)
+
+You can specify a custom log file in the configuration.
+
+==============================================================================
+vim:tw=78:ts=8:ft=help:norl:

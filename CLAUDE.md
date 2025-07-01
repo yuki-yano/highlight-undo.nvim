@@ -180,13 +180,6 @@ deno test denops/highlight-undo/core/diff-optimizer_test.ts
 - **空白の特別処理**: インデント変更や行末空白の変更をより見やすく表示
 - 設定可能なオプション: `rangeAdjustments.adjustWordBoundaries`と`rangeAdjustments.handleWhitespace`
 
-### ハイブリッドdiff（実験的機能）
-
-- **効率的な差分検出**: 行単位と文字単位のdiffを組み合わせた高速アルゴリズム
-- **大規模な変更に対応**: 変更が大きい場合は行単位、小さい場合は文字単位で処理
-- **パフォーマンス向上**: 従来の文字単位のみのdiffより高速に動作
-- 設定オプション: `experimental.hybridDiff`（デフォルトはfalse）
-
 ## デバッグ機能
 
 デバッグモードを有効にすると、詳細なログが出力されます：

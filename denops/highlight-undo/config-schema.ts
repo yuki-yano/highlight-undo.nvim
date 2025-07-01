@@ -1,49 +1,52 @@
-// Unified configuration schema for TypeScript and Lua
+// Unified configuration schema for TypeScript and Lua using Zod
+import { z } from "./deps.ts";
 
-export interface ConfigSchema {
-  mappings: {
-    undo: string;
-    redo: string;
-  };
-  enabled: {
-    added: boolean;
-    removed: boolean;
-  };
-  highlight: {
-    added: string;
-    removed: string;
-  };
-  threshold: {
-    line: number;
-    char: number;
-  };
-  duration: number;
-  debug?: boolean;
-  logFile?: string;
-  rangeAdjustments?: {
-    adjustWordBoundaries?: boolean;
-    handleWhitespace?: boolean;
-  };
-  experimental?: {
-    hybridDiff?: boolean;
-  };
-  heuristics?: {
-    enabled?: boolean;
-    thresholds?: {
-      tiny?: number;
-      small?: number;
-      medium?: number;
-    };
-    strategies?: {
-      tiny?: "character" | "word" | "line" | "block";
-      small?: "character" | "word" | "line" | "block";
-      medium?: "character" | "word" | "line" | "block";
-      large?: "character" | "word" | "line" | "block";
-    };
-  };
-}
+// Define the schema using Zod
+export const ConfigSchema = z.object({
+  mappings: z.object({
+    undo: z.string(),
+    redo: z.string(),
+  }),
+  enabled: z.object({
+    added: z.boolean(),
+    removed: z.boolean(),
+  }),
+  highlight: z.object({
+    added: z.string(),
+    removed: z.string(),
+  }),
+  threshold: z.object({
+    line: z.number().positive(),
+    char: z.number().positive(),
+  }),
+  duration: z.number().positive(),
+  debug: z.boolean().optional(),
+  logFile: z.string().optional(),
+  rangeAdjustments: z.object({
+    adjustWordBoundaries: z.boolean().optional(),
+    handleWhitespace: z.boolean().optional(),
+  }).optional(),
+  heuristics: z.object({
+    enabled: z.boolean().optional(),
+    thresholds: z.object({
+      tiny: z.number().optional(),
+      small: z.number().optional(),
+      medium: z.number().optional(),
+    }).optional(),
+    strategies: z.object({
+      tiny: z.enum(["character", "word", "line", "block"]).optional(),
+      small: z.enum(["character", "word", "line", "block"]).optional(),
+      medium: z.enum(["character", "word", "line", "block"]).optional(),
+      large: z.enum(["character", "word", "line", "block"]).optional(),
+    }).optional(),
+  }).optional(),
+});
 
-export const defaultConfig: ConfigSchema = {
+// Infer the TypeScript type from the Zod schema
+export type Config = z.infer<typeof ConfigSchema>;
+
+// Default configuration values
+export const defaultConfig: Config = {
   mappings: {
     undo: "u",
     redo: "<C-r>",
@@ -65,9 +68,6 @@ export const defaultConfig: ConfigSchema = {
     adjustWordBoundaries: true,
     handleWhitespace: true,
   },
-  experimental: {
-    hybridDiff: false,
-  },
   heuristics: {
     enabled: true,
     thresholds: {
@@ -83,3 +83,7 @@ export const defaultConfig: ConfigSchema = {
     },
   },
 };
+
+// Partial schema for user configuration (all fields optional)
+export const PartialConfigSchema = ConfigSchema.deepPartial();
+export type PartialConfig = z.infer<typeof PartialConfigSchema>;

@@ -87,7 +87,6 @@ function calculateDiff(
   preCode: string,
   postCode: string,
   threshold: { line: number; char: number },
-  config: Config,
 ): DiffResult | null {
   // Always use the regular diff optimizer
   // The heuristic strategy will handle display optimizations
@@ -96,10 +95,6 @@ function calculateDiff(
     postCode,
     threshold,
   );
-
-  if (config.debug && config.experimental?.hybridDiff) {
-    console.log(`[highlight-undo] Hybrid diff mode is deprecated. Using heuristic strategies instead.`);
-  }
 
   return result;
 }
@@ -453,7 +448,6 @@ export function createHighlightCommandExecutor(
         state.preCode,
         state.postCode,
         deps.config.threshold,
-        deps.config,
       );
       if (!diffResult) {
         if (deps.debugMode) {

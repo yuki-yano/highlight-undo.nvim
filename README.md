@@ -111,11 +111,6 @@ require('highlight-undo').setup({
       large = "block",     -- Highlight blocks of lines
     },
   },
-  
-  -- Experimental features
-  experimental = {
-    hybridDiff = false,  -- Deprecated: Use heuristics instead
-  },
 })
 ```
 
