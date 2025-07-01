@@ -1,6 +1,7 @@
 # highlight-undo.nvim
 
-A Neovim plugin that visualizes undo/redo operations by highlighting the text differences. This plugin makes it easy to see what changes when you undo or redo, improving your editing workflow.
+A Neovim plugin that visualizes undo/redo operations by highlighting the text differences. This plugin makes it easy to
+see what changes when you undo or redo, improving your editing workflow.
 
 ## Features
 

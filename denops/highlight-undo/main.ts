@@ -242,7 +242,7 @@ export const main = async (denops: Denops): Promise<void> => {
     },
 
     // Buffer cleanup
-    bufferDelete: async (...args: unknown[]): Promise<void> => {
+    bufferDelete: (...args: unknown[]): void => {
       const bufnr = args[0];
       if (typeof bufnr === "number") {
         bufferStates.clear(bufnr);
@@ -251,7 +251,7 @@ export const main = async (denops: Denops): Promise<void> => {
     },
 
     // Get performance stats
-    getStats: async (): Promise<unknown> => {
+    getStats: (): unknown => {
       return {
         buffers: bufferStates.getStats(),
         queue: commandQueue.getStats(),
@@ -260,7 +260,7 @@ export const main = async (denops: Denops): Promise<void> => {
     },
 
     // Clear all caches
-    clearCache: async (): Promise<void> => {
+    clearCache: (): void => {
       bufferStates.clearAll();
       diffOptimizer.clearCache();
       commandQueue.clearAll();
@@ -324,7 +324,6 @@ async function executeHighlightCommand(
       return;
     }
 
-    const { changes, lineInfo } = diffResult;
 
     // Execute the actual command first
     await denops.cmd(command);

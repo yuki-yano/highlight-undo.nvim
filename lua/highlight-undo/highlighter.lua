@@ -204,31 +204,25 @@ end
 function M.apply_highlights_bulk(namespace, added_hl, removed_hl, added_ranges, removed_ranges)
   -- Clear existing highlights
   vim.api.nvim_buf_clear_namespace(0, namespace, 0, -1)
-  
+
   -- Apply added highlights
   for _, range in ipairs(added_ranges) do
-    vim.api.nvim_buf_set_extmark(
-      0, namespace, range.row, range.col_start,
-      {
-        end_row = range.row,
-        end_col = range.col_end,
-        hl_group = added_hl,
-        ephemeral = true
-      }
-    )
+    vim.api.nvim_buf_set_extmark(0, namespace, range.row, range.col_start, {
+      end_row = range.row,
+      end_col = range.col_end,
+      hl_group = added_hl,
+      ephemeral = true,
+    })
   end
-  
+
   -- Apply removed highlights
   for _, range in ipairs(removed_ranges) do
-    vim.api.nvim_buf_set_extmark(
-      0, namespace, range.row, range.col_start,
-      {
-        end_row = range.row,
-        end_col = range.col_end,
-        hl_group = removed_hl,
-        ephemeral = true
-      }
-    )
+    vim.api.nvim_buf_set_extmark(0, namespace, range.row, range.col_start, {
+      end_row = range.row,
+      end_col = range.col_end,
+      hl_group = removed_hl,
+      ephemeral = true,
+    })
   end
 end
 
