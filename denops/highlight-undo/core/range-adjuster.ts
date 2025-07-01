@@ -6,13 +6,13 @@ import type { Range } from "./range-computer.ts";
  */
 export function adjustNewlineBoundaries(ranges: ReadonlyArray<Range>): ReadonlyArray<Range> {
   return ranges.map((range) => {
-    const { matchText, lnum, col, lineText, changeType } = range;
+    const { matchText, lnum, col } = range;
 
     // Handle changes that end with a newline
     if (matchText.endsWith("\n")) {
       // For changes ending with newline, don't highlight the newline itself
       const adjustedText = matchText.slice(0, -1);
-      
+
       // If the entire match was just a newline, skip it
       if (adjustedText === "") {
         return null;
@@ -31,7 +31,7 @@ export function adjustNewlineBoundaries(ranges: ReadonlyArray<Range>): ReadonlyA
     // Handle changes that start with a newline
     if (matchText.startsWith("\n") && lnum > 1) {
       const adjustedText = matchText.slice(1);
-      
+
       // If the entire match was just a newline, treat it as end of previous line
       if (adjustedText === "") {
         // Return a marker at the end of the previous line
@@ -74,7 +74,7 @@ export function adjustWordBoundaries(ranges: ReadonlyArray<Range>): ReadonlyArra
     // Check if the match starts and ends at word boundaries
     const startsAtBoundary = col.start === 0 || /\W/.test(lineText[col.start - 1]);
     const endsAtBoundary = col.end === lineText.length || /\W/.test(lineText[col.end]);
-    
+
     if (startsAtBoundary && endsAtBoundary) {
       return range;
     }
@@ -107,7 +107,7 @@ export function adjustWordBoundaries(ranges: ReadonlyArray<Range>): ReadonlyArra
         break;
       }
     }
-    
+
     // If we didn't find a boundary going forward, extend to end of line
     if (endAdjust === 0 && col.end < lineText.length) {
       endAdjust = lineText.length - col.end;
@@ -209,7 +209,7 @@ export function mergeOverlappingRanges(ranges: ReadonlyArray<Range>): ReadonlyAr
       // Merge the ranges
       const newEnd = Math.max(current.col.end, next.col.end);
       const newMatchText = current.lineText.substring(current.col.start, newEnd);
-      
+
       current = {
         ...current,
         col: {

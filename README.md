@@ -93,6 +93,11 @@ require('highlight-undo').setup({
     adjustWordBoundaries = true,  -- Expand highlights to word boundaries
     handleWhitespace = true,      -- Special handling for whitespace changes
   },
+  
+  -- Experimental features
+  experimental = {
+    hybridDiff = false,  -- Use hybrid line/character diff for better performance
+  },
 })
 ```
 

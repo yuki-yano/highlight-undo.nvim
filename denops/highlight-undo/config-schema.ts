@@ -24,6 +24,9 @@ export interface ConfigSchema {
     adjustWordBoundaries?: boolean;
     handleWhitespace?: boolean;
   };
+  experimental?: {
+    hybridDiff?: boolean;
+  };
 }
 
 export const defaultConfig: ConfigSchema = {
@@ -47,5 +50,8 @@ export const defaultConfig: ConfigSchema = {
   rangeAdjustments: {
     adjustWordBoundaries: true,
     handleWhitespace: true,
+  },
+  experimental: {
+    hybridDiff: false,
   },
 };

@@ -4,13 +4,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## プロジェクト概要
 
-highlight-undo.nvim は Neovim の undo/redo 実行時に差分をハイライトするプラグインです。[denops.vim](https://github.com/vim-denops/denops.vim) に依存しています。
+highlight-undo.nvim は Neovim の undo/redo
+実行時に差分をハイライトするプラグインです。[denops.vim](https://github.com/vim-denops/denops.vim) に依存しています。
 
 ## アーキテクチャ
 
 ### 関数ベースアーキテクチャ
 
 最近のリファクタリングにより、クラスベースから関数ベースのアーキテクチャに移行しました。これにより：
+
 - シンプルで直接的な関数呼び出し
 - テストが容易な純粋関数
 - パフォーマンスの向上
@@ -178,6 +180,13 @@ deno test denops/highlight-undo/core/diff-optimizer_test.ts
 - **空白の特別処理**: インデント変更や行末空白の変更をより見やすく表示
 - 設定可能なオプション: `rangeAdjustments.adjustWordBoundaries`と`rangeAdjustments.handleWhitespace`
 
+### ハイブリッドdiff（実験的機能）
+
+- **効率的な差分検出**: 行単位と文字単位のdiffを組み合わせた高速アルゴリズム
+- **大規模な変更に対応**: 変更が大きい場合は行単位、小さい場合は文字単位で処理
+- **パフォーマンス向上**: 従来の文字単位のみのdiffより高速に動作
+- 設定オプション: `experimental.hybridDiff`（デフォルトはfalse）
+
 ## デバッグ機能
 
 デバッグモードを有効にすると、詳細なログが出力されます：
@@ -241,6 +250,7 @@ deno run --allow-all denops/highlight-undo/performance-benchmark.ts
 ```
 
 ベンチマーク結果には以下が含まれます：
+
 - 差分計算の処理時間
 - 範囲計算の処理時間
 - キャッシュのヒット率

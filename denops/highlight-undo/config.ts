@@ -88,6 +88,18 @@ export function validateConfig(userConfig: unknown): Config {
     result.rangeAdjustments = uc.rangeAdjustments as Config["rangeAdjustments"];
   }
 
+  if (uc.experimental !== undefined) {
+    // Validate experimental if provided
+    if (typeof uc.experimental !== "object" || uc.experimental === null) {
+      throw new Error("Config.experimental must be an object");
+    }
+    const exp = uc.experimental as Record<string, unknown>;
+    if (exp.hybridDiff !== undefined && typeof exp.hybridDiff !== "boolean") {
+      throw new Error("Config.experimental.hybridDiff must be a boolean");
+    }
+    result.experimental = uc.experimental as Config["experimental"];
+  }
+
   return result;
 }
 
@@ -102,6 +114,7 @@ function mergeWithDefaults(userConfig: unknown, base?: Config): Config {
   const highlight = uc?.highlight as Record<string, unknown> | undefined;
   const threshold = uc?.threshold as Record<string, unknown> | undefined;
   const rangeAdjustments = uc?.rangeAdjustments as Record<string, unknown> | undefined;
+  const experimental = uc?.experimental as Record<string, unknown> | undefined;
 
   const defaults = base ?? defaultConfig;
 
@@ -135,14 +148,22 @@ function mergeWithDefaults(userConfig: unknown, base?: Config): Config {
   if (logFile !== undefined) {
     result.logFile = logFile;
   }
-  
+
   // Handle rangeAdjustments
   if (rangeAdjustments !== undefined || defaults.rangeAdjustments !== undefined) {
     result.rangeAdjustments = {
-      adjustWordBoundaries: (rangeAdjustments?.adjustWordBoundaries as boolean | undefined) ?? 
-                           defaults.rangeAdjustments?.adjustWordBoundaries ?? true,
-      handleWhitespace: (rangeAdjustments?.handleWhitespace as boolean | undefined) ?? 
-                       defaults.rangeAdjustments?.handleWhitespace ?? true,
+      adjustWordBoundaries: (rangeAdjustments?.adjustWordBoundaries as boolean | undefined) ??
+        defaults.rangeAdjustments?.adjustWordBoundaries ?? true,
+      handleWhitespace: (rangeAdjustments?.handleWhitespace as boolean | undefined) ??
+        defaults.rangeAdjustments?.handleWhitespace ?? true,
+    };
+  }
+
+  // Handle experimental
+  if (experimental !== undefined || defaults.experimental !== undefined) {
+    result.experimental = {
+      hybridDiff: (experimental?.hybridDiff as boolean | undefined) ??
+        defaults.experimental?.hybridDiff ?? false,
     };
   }
 

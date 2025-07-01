@@ -7,12 +7,14 @@ import type { IErrorHandler } from "../error-handler.ts";
 import { createPerformanceMonitor, formatPerformanceMetrics, type IPerformanceMonitor } from "../performance.ts";
 import { computeRanges, type Range } from "../core/range-computer.ts";
 import { fillRangeGaps } from "../core/utils.ts";
-import { 
-  adjustNewlineBoundaries, 
-  adjustWordBoundaries, 
+import {
+  adjustNewlineBoundaries,
+  adjustWordBoundaries,
   handleWhitespaceChanges,
-  mergeOverlappingRanges 
+  mergeOverlappingRanges,
 } from "../core/range-adjuster.ts";
+import { calculateHybridDiff } from "../core/hybrid-diff-optimizer.ts";
+import { computeHybridRanges } from "../core/hybrid-range-computer.ts";
 import { Diff, fn } from "../deps.ts";
 
 type Command = "undo" | "redo";
@@ -86,7 +88,45 @@ function calculateDiff(
   preCode: string,
   postCode: string,
   threshold: { line: number; char: number },
+  config: Config,
 ): DiffResult | null {
+  // Use hybrid diff if enabled
+  if (config.experimental?.hybridDiff) {
+    const hybridResult = calculateHybridDiff(preCode, postCode);
+
+    // Convert to lines for threshold check
+    const beforeLines = preCode.split("\n");
+    const afterLines = postCode.split("\n");
+
+    // Check thresholds
+    const totalLines = Math.max(beforeLines.length, afterLines.length);
+    const totalChars = Math.max(preCode.length, postCode.length);
+
+    if (totalLines > threshold.line || totalChars > threshold.char) {
+      return null;
+    }
+
+    // Convert hybrid diff to ranges
+    const ranges = computeHybridRanges(hybridResult, beforeLines, afterLines);
+
+    // Convert ranges to DiffResult format
+    const changes: Diff.Change[] = ranges.map((range) => ({
+      value: range.matchText,
+      added: range.changeType === "added",
+      removed: range.changeType === "removed",
+      count: range.matchText.length,
+    }));
+
+    return {
+      changes,
+      lineInfo: {
+        aboveLine: Math.min(...ranges.map((r) => r.lnum), 1),
+        belowLine: Math.max(...ranges.map((r) => r.lnum), afterLines.length),
+      },
+    };
+  }
+
+  // Use regular diff optimizer
   const result = diffOptimizer.calculateDiff(
     preCode,
     postCode,
@@ -106,23 +146,23 @@ function applyRangeAdjustments(
 ): ReadonlyArray<Range> {
   // Apply adjustments based on configuration
   let adjustedRanges = ranges;
-  
+
   // Always apply newline boundary adjustments (this is critical for correctness)
   adjustedRanges = adjustNewlineBoundaries(adjustedRanges);
-  
+
   // Apply word boundary adjustments if enabled
   if (config.rangeAdjustments?.adjustWordBoundaries ?? true) {
     adjustedRanges = adjustWordBoundaries(adjustedRanges);
   }
-  
+
   // Apply whitespace handling if enabled
   if (config.rangeAdjustments?.handleWhitespace ?? true) {
     adjustedRanges = handleWhitespaceChanges(adjustedRanges);
   }
-  
+
   // Always merge overlapping ranges to avoid duplicate highlights
   adjustedRanges = mergeOverlappingRanges(adjustedRanges);
-  
+
   return adjustedRanges;
 }
 
@@ -172,7 +212,7 @@ async function highlight(
 
     // Apply range adjustments for more intuitive highlighting
     const adjustedRanges = applyRangeAdjustments(ranges, deps.config);
-    
+
     // Convert ranges with proper encoding
     const convertedRanges = convertRangesWithEncoding(adjustedRanges);
 
@@ -309,7 +349,7 @@ async function applyHighlightRanges(
 
     // Apply range adjustments for more intuitive highlighting
     const adjustedRanges = applyRangeAdjustments(ranges, deps.config);
-    
+
     const convertedRanges = convertRangesWithEncoding(adjustedRanges);
 
     await deps.highlightBatcher.applyHighlights(
@@ -440,6 +480,7 @@ export function createHighlightCommandExecutor(
         state.preCode,
         state.postCode,
         deps.config.threshold,
+        deps.config,
       );
       if (!diffResult) {
         if (deps.debugMode) {

@@ -2,7 +2,8 @@
 
 ## Overview
 
-highlight-undo.nvim is a Neovim plugin that visualizes undo/redo operations through text highlighting. The plugin is built on a modern architecture using TypeScript/Deno for core logic and Lua for Neovim integration.
+highlight-undo.nvim is a Neovim plugin that visualizes undo/redo operations through text highlighting. The plugin is
+built on a modern architecture using TypeScript/Deno for core logic and Lua for Neovim integration.
 
 ## Architecture Principles
 
@@ -40,17 +41,20 @@ The recent refactoring converted the codebase from a class-based to a function-b
 ### Lua Layer (`lua/highlight-undo/`)
 
 **init.lua**
+
 - Plugin entry point and configuration management
 - Key mapping setup
 - Denops communication interface
 - Runtime state management
 
 **highlighter.lua**
+
 - Neovim highlighting API wrapper
 - Namespace management for highlights
 - Visual effect application
 
 **debug.lua**
+
 - Debug utilities and commands
 - Performance statistics collection
 - Configuration inspection
@@ -58,6 +62,7 @@ The recent refactoring converted the codebase from a class-based to a function-b
 ### TypeScript/Deno Layer (`denops/highlight-undo/`)
 
 **main.ts**
+
 - Main entry point for Denops plugin
 - Request handling and routing
 - Buffer state coordination
@@ -66,17 +71,20 @@ The recent refactoring converted the codebase from a class-based to a function-b
 ### Application Layer (`denops/highlight-undo/application/`)
 
 **highlight-command-executor.ts**
+
 - Core undo/redo execution logic
 - Diff calculation orchestration
 - Highlight timing control
 - Performance threshold checking
 
 **command-queue.ts**
+
 - Per-buffer command queuing
 - Concurrent operation serialization
 - Order guarantee for operations
 
 **buffer-state.ts**
+
 - Buffer content caching
 - State transition management
 - Cache invalidation logic
@@ -84,21 +92,25 @@ The recent refactoring converted the codebase from a class-based to a function-b
 ### Core Layer (`denops/highlight-undo/core/`)
 
 **diff-optimizer.ts**
+
 - Optimized diff algorithms
 - Caching for repeated operations
 - Performance-focused implementations
 
 **range-computer.ts**
+
 - Line/character range calculation
 - Multi-byte character handling
 - Position mapping between Vim and JavaScript
 
 **encoding.ts**
+
 - UTF-8 byte position conversion
 - Multi-byte character support
 - Emoji and CJK handling
 
 **utils.ts**
+
 - Shared utility functions
 - Common type definitions
 - Helper functions
@@ -106,6 +118,7 @@ The recent refactoring converted the codebase from a class-based to a function-b
 ### Infrastructure Layer (`denops/highlight-undo/infrastructure/`)
 
 **highlight-batcher.ts**
+
 - Batch highlight operations
 - API call optimization
 - Timing coordination
@@ -115,6 +128,7 @@ The recent refactoring converted the codebase from a class-based to a function-b
 ### 1. Function-Based Architecture
 
 The migration from classes to functions provides:
+
 - Reduced complexity
 - Better tree-shaking
 - Easier testing
@@ -123,6 +137,7 @@ The migration from classes to functions provides:
 ### 2. Per-Buffer State Management
 
 Each buffer maintains its own:
+
 - Command queue
 - Content cache
 - Operation locks
@@ -176,6 +191,7 @@ Timer: Clear highlights after duration
 ### Redo Operation Flow
 
 Similar to undo, but with reversed diff interpretation:
+
 - Undo: removed text is highlighted before deletion
 - Redo: added text is highlighted after addition
 
@@ -198,12 +214,14 @@ Similar to undo, but with reversed diff interpretation:
 ## Testing Strategy
 
 ### Unit Tests
+
 - Pure function testing
 - Mock-based integration tests
 - Performance benchmarks
 - Edge case coverage
 
 ### Integration Tests
+
 - End-to-end scenarios
 - Multi-buffer operations
 - Concurrent operation handling
@@ -253,4 +271,6 @@ Similar to undo, but with reversed diff interpretation:
 
 ## Conclusion
 
-The architecture of highlight-undo.nvim prioritizes simplicity, performance, and reliability. The function-based design combined with careful state management and optimization strategies provides a robust foundation for visualizing undo/redo operations in Neovim.
+The architecture of highlight-undo.nvim prioritizes simplicity, performance, and reliability. The function-based design
+combined with careful state management and optimization strategies provides a robust foundation for visualizing
+undo/redo operations in Neovim.
