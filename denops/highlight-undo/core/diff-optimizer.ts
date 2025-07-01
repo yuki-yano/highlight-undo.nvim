@@ -8,8 +8,6 @@ export interface DiffResult {
     aboveLine: number;
     belowLine: number;
   };
-  // Optional: Used when hybrid diff is enabled
-  hybridRanges?: ReadonlyArray<import("./range-computer.ts").Range>;
 }
 
 export interface IDiffOptimizer {

@@ -94,9 +94,27 @@ require('highlight-undo').setup({
     handleWhitespace = true,      -- Special handling for whitespace changes
   },
   
+  -- Heuristic display strategies
+  heuristics = {
+    enabled = true,
+    -- Change size thresholds (in characters)
+    thresholds = {
+      tiny = 5,     -- Changes <= 5 chars
+      small = 20,   -- Changes <= 20 chars
+      medium = 100, -- Changes <= 100 chars
+    },
+    -- Display strategies for each size
+    strategies = {
+      tiny = "character",   -- Show exact character changes
+      small = "word",      -- Expand to word boundaries
+      medium = "line",     -- Highlight full lines
+      large = "block",     -- Highlight blocks of lines
+    },
+  },
+  
   -- Experimental features
   experimental = {
-    hybridDiff = false,  -- Use hybrid line/character diff for better performance
+    hybridDiff = false,  -- Deprecated: Use heuristics instead
   },
 })
 ```
@@ -167,6 +185,22 @@ lua require('highlight-undo').setup({
   }
 })
 ```
+
+## Heuristic Display Strategies
+
+The plugin uses intelligent heuristics to display changes in the most intuitive way:
+
+- **Tiny changes (1-5 chars)**: Show exact character-level changes
+- **Small changes (5-20 chars)**: Expand to word boundaries for better context
+- **Medium changes (20-100 chars)**: Highlight entire lines
+- **Large changes (100+ chars)**: Group consecutive lines into blocks
+
+This adaptive approach ensures that:
+
+- Small typo fixes are precisely highlighted
+- Word replacements show complete words
+- Line edits are clearly visible
+- Large refactorings are shown as cohesive blocks
 
 ## Performance Optimizations
 

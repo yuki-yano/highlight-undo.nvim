@@ -100,6 +100,48 @@ export function validateConfig(userConfig: unknown): Config {
     result.experimental = uc.experimental as Config["experimental"];
   }
 
+  if (uc.heuristics !== undefined) {
+    // Validate heuristics if provided
+    if (typeof uc.heuristics !== "object" || uc.heuristics === null) {
+      throw new Error("Config.heuristics must be an object");
+    }
+    const heur = uc.heuristics as Record<string, unknown>;
+    if (heur.enabled !== undefined && typeof heur.enabled !== "boolean") {
+      throw new Error("Config.heuristics.enabled must be a boolean");
+    }
+
+    // Validate thresholds
+    if (heur.thresholds !== undefined) {
+      if (typeof heur.thresholds !== "object" || heur.thresholds === null) {
+        throw new Error("Config.heuristics.thresholds must be an object");
+      }
+      const thresholds = heur.thresholds as Record<string, unknown>;
+      for (const key of ["tiny", "small", "medium"]) {
+        if (thresholds[key] !== undefined && typeof thresholds[key] !== "number") {
+          throw new Error(`Config.heuristics.thresholds.${key} must be a number`);
+        }
+      }
+    }
+
+    // Validate strategies
+    if (heur.strategies !== undefined) {
+      if (typeof heur.strategies !== "object" || heur.strategies === null) {
+        throw new Error("Config.heuristics.strategies must be an object");
+      }
+      const strategies = heur.strategies as Record<string, unknown>;
+      const validStrategies = ["character", "word", "line", "block"];
+      for (const key of ["tiny", "small", "medium", "large"]) {
+        if (strategies[key] !== undefined) {
+          if (!validStrategies.includes(strategies[key] as string)) {
+            throw new Error(`Config.heuristics.strategies.${key} must be one of: ${validStrategies.join(", ")}`);
+          }
+        }
+      }
+    }
+
+    result.heuristics = uc.heuristics as Config["heuristics"];
+  }
+
   return result;
 }
 
@@ -115,6 +157,7 @@ function mergeWithDefaults(userConfig: unknown, base?: Config): Config {
   const threshold = uc?.threshold as Record<string, unknown> | undefined;
   const rangeAdjustments = uc?.rangeAdjustments as Record<string, unknown> | undefined;
   const experimental = uc?.experimental as Record<string, unknown> | undefined;
+  const heuristics = uc?.heuristics as Record<string, unknown> | undefined;
 
   const defaults = base ?? defaultConfig;
 
@@ -165,6 +208,43 @@ function mergeWithDefaults(userConfig: unknown, base?: Config): Config {
       hybridDiff: (experimental?.hybridDiff as boolean | undefined) ??
         defaults.experimental?.hybridDiff ?? false,
     };
+  }
+
+  // Handle heuristics
+  if (heuristics !== undefined || defaults.heuristics !== undefined) {
+    const heurThresholds = heuristics?.thresholds as Record<string, unknown> | undefined;
+    const heurStrategies = heuristics?.strategies as Record<string, unknown> | undefined;
+
+    result.heuristics = {
+      enabled: (heuristics?.enabled as boolean | undefined) ??
+        defaults.heuristics?.enabled ?? true,
+    };
+
+    // Merge thresholds
+    if (heurThresholds !== undefined || defaults.heuristics?.thresholds !== undefined) {
+      result.heuristics.thresholds = {
+        tiny: (heurThresholds?.tiny as number | undefined) ??
+          defaults.heuristics?.thresholds?.tiny ?? 5,
+        small: (heurThresholds?.small as number | undefined) ??
+          defaults.heuristics?.thresholds?.small ?? 20,
+        medium: (heurThresholds?.medium as number | undefined) ??
+          defaults.heuristics?.thresholds?.medium ?? 100,
+      };
+    }
+
+    // Merge strategies
+    if (heurStrategies !== undefined || defaults.heuristics?.strategies !== undefined) {
+      result.heuristics.strategies = {
+        tiny: (heurStrategies?.tiny as "character" | "word" | "line" | "block" | undefined) ??
+          defaults.heuristics?.strategies?.tiny ?? "character",
+        small: (heurStrategies?.small as "character" | "word" | "line" | "block" | undefined) ??
+          defaults.heuristics?.strategies?.small ?? "word",
+        medium: (heurStrategies?.medium as "character" | "word" | "line" | "block" | undefined) ??
+          defaults.heuristics?.strategies?.medium ?? "line",
+        large: (heurStrategies?.large as "character" | "word" | "line" | "block" | undefined) ??
+          defaults.heuristics?.strategies?.large ?? "block",
+      };
+    }
   }
 
   return result;

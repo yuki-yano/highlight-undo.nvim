@@ -13,8 +13,7 @@ import {
   handleWhitespaceChanges,
   mergeOverlappingRanges,
 } from "../core/range-adjuster.ts";
-import { calculateHybridDiff } from "../core/hybrid-diff-optimizer.ts";
-import { computeHybridRanges } from "../core/hybrid-range-computer.ts";
+import { applyHeuristicStrategy } from "../core/heuristic-strategy.ts";
 import { Diff, fn } from "../deps.ts";
 
 type Command = "undo" | "redo";
@@ -90,43 +89,17 @@ function calculateDiff(
   threshold: { line: number; char: number },
   config: Config,
 ): DiffResult | null {
-  // Use hybrid diff if enabled
-  if (config.experimental?.hybridDiff) {
-    const hybridResult = calculateHybridDiff(preCode, postCode);
-
-    // Convert to lines for threshold check
-    const beforeLines = preCode.split("\n");
-    const afterLines = postCode.split("\n");
-
-    // Check thresholds
-    const totalLines = Math.max(beforeLines.length, afterLines.length);
-    const totalChars = Math.max(preCode.length, postCode.length);
-
-    if (totalLines > threshold.line || totalChars > threshold.char) {
-      return null;
-    }
-
-    // Convert hybrid diff to ranges
-    const ranges = computeHybridRanges(hybridResult, beforeLines, afterLines);
-
-    // Store ranges in a special property for hybrid diff
-    return {
-      changes: [],
-      lineInfo: {
-        aboveLine: Math.min(...ranges.map((r) => r.lnum), 1),
-        belowLine: Math.max(...ranges.map((r) => r.lnum), afterLines.length),
-      },
-      // Add ranges directly for hybrid diff
-      hybridRanges: ranges,
-    };
-  }
-
-  // Use regular diff optimizer
+  // Always use the regular diff optimizer
+  // The heuristic strategy will handle display optimizations
   const result = diffOptimizer.calculateDiff(
     preCode,
     postCode,
     threshold,
   );
+
+  if (config.debug && config.experimental?.hybridDiff) {
+    console.log(`[highlight-undo] Hybrid diff mode is deprecated. Using heuristic strategies instead.`);
+  }
 
   return result;
 }
@@ -141,6 +114,11 @@ function applyRangeAdjustments(
 ): ReadonlyArray<Range> {
   // Apply adjustments based on configuration
   let adjustedRanges = ranges;
+
+  // Apply heuristic strategy first (if enabled)
+  if (config.heuristics?.enabled ?? true) {
+    adjustedRanges = applyHeuristicStrategy(adjustedRanges, config.heuristics);
+  }
 
   // Always apply newline boundary adjustments (this is critical for correctness)
   adjustedRanges = adjustNewlineBoundaries(adjustedRanges);
@@ -297,36 +275,6 @@ async function applyHighlights(
   perf: IPerformanceMonitor | null,
   deps: HighlightCommandExecutorDeps,
 ): Promise<void> {
-  // If hybrid ranges are available, use them directly
-  if (diffResult.hybridRanges) {
-    const addedRanges = diffResult.hybridRanges.filter(r => r.changeType === "added");
-    const removedRanges = diffResult.hybridRanges.filter(r => r.changeType === "removed");
-
-    if (addedRanges.length > 0 && deps.config.enabled.added) {
-      const filledRanges = fillRangeGaps({
-        ranges: addedRanges,
-        aboveLine: diffResult.lineInfo.aboveLine,
-        belowLine: diffResult.lineInfo.belowLine,
-      });
-      
-      perf?.mark("highlightApplication");
-      await highlight(denops, filledRanges, "added", bufnr, deps);
-    }
-
-    if (removedRanges.length > 0 && deps.config.enabled.removed) {
-      const filledRanges = fillRangeGaps({
-        ranges: removedRanges,
-        aboveLine: diffResult.lineInfo.aboveLine,
-        belowLine: diffResult.lineInfo.belowLine,
-      });
-      
-      perf?.mark("highlightApplication");
-      await highlight(denops, filledRanges, "removed", bufnr, deps);
-    }
-    return;
-  }
-
-  // Use regular change-based highlighting
   const { changes, lineInfo } = diffResult;
   const hasAdditions = changes.some((change) => change.added);
   const hasRemovals = changes.some((change) => change.removed);
@@ -401,23 +349,16 @@ async function applyHighlightsWithDelayedCommand(
   _perf: IPerformanceMonitor | null,
   deps: HighlightCommandExecutorDeps,
 ): Promise<void> {
+  const { changes, lineInfo } = diffResult;
+
   // Only highlight removals for undo command
   if (deps.config.enabled.removed) {
-    let removedRanges: ReadonlyArray<Range>;
-
-    // If hybrid ranges are available, use them directly
-    if (diffResult.hybridRanges) {
-      removedRanges = diffResult.hybridRanges.filter(r => r.changeType === "removed");
-    } else {
-      // Use regular change-based computation
-      const { changes } = diffResult;
-      removedRanges = computeRanges({
-        changes,
-        beforeCode: state.preCode,
-        afterCode: state.postCode,
-        changeType: "removed",
-      });
-    }
+    const removedRanges = computeRanges({
+      changes,
+      beforeCode: state.preCode,
+      afterCode: state.postCode,
+      changeType: "removed",
+    });
 
     if (deps.debugMode) {
       console.log(`[highlight-undo] Removed ranges before fillRangeGaps:`, removedRanges);
@@ -425,8 +366,8 @@ async function applyHighlightsWithDelayedCommand(
 
     const filledRanges = fillRangeGaps({
       ranges: removedRanges,
-      aboveLine: diffResult.lineInfo.aboveLine,
-      belowLine: diffResult.lineInfo.belowLine,
+      aboveLine: lineInfo.aboveLine,
+      belowLine: lineInfo.belowLine,
     });
 
     if (deps.debugMode) {
@@ -523,16 +464,8 @@ export function createHighlightCommandExecutor(
       }
 
       // Check if there are removals (regardless of undo/redo)
-      let hasRemovals: boolean;
-      let hasAdditions: boolean;
-      
-      if (diffResult.hybridRanges) {
-        hasRemovals = diffResult.hybridRanges.some((r) => r.changeType === "removed");
-        hasAdditions = diffResult.hybridRanges.some((r) => r.changeType === "added");
-      } else {
-        hasRemovals = diffResult.changes.some((c) => c.removed);
-        hasAdditions = diffResult.changes.some((c) => c.added);
-      }
+      const hasRemovals = diffResult.changes.some((c) => c.removed);
+      const hasAdditions = diffResult.changes.some((c) => c.added);
 
       if (deps.debugMode) {
         console.log(
