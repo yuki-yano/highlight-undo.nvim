@@ -34,20 +34,6 @@ Using [lazy.nvim](https://github.com/folke/lazy.nvim):
 }
 ```
 
-Using [packer.nvim](https://github.com/wbthomason/packer.nvim):
-
-```lua
-use {
-  'yuki-yano/highlight-undo.nvim',
-  requires = {
-    'vim-denops/denops.vim',
-  },
-  config = function()
-    require('highlight-undo').setup({})
-  end,
-}
-```
-
 ## Demo
 
 https://user-images.githubusercontent.com/5423775/213918351-8f75c385-9d87-4efb-93ea-4a468213faa0.mp4
@@ -253,13 +239,6 @@ deno run --allow-all denops/highlight-undo/performance-benchmark.ts
 ## License
 
 MIT License - see [LICENSE](LICENSE) file for details
-
-## Recent Improvements
-
-### v1.1.0 (2025-01-01)
-
-- **Fixed multi-line change highlighting**: Improved range calculation to correctly highlight all changed lines in complex undo/redo operations
-- **Better handling of multiple change chunks**: All intermediate changes are now properly highlighted, not just the first and last chunks
 
 ## Credits
 
