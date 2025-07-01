@@ -20,6 +20,10 @@ export interface ConfigSchema {
   duration: number;
   debug?: boolean;
   logFile?: string;
+  rangeAdjustments?: {
+    adjustWordBoundaries?: boolean;
+    handleWhitespace?: boolean;
+  };
 }
 
 export const defaultConfig: ConfigSchema = {
@@ -40,4 +44,8 @@ export const defaultConfig: ConfigSchema = {
     char: 1500,
   },
   duration: 200,
+  rangeAdjustments: {
+    adjustWordBoundaries: true,
+    handleWhitespace: true,
+  },
 };

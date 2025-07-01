@@ -10,6 +10,7 @@ see what changes when you undo or redo, improving your editing workflow.
 - 🌏 **Multi-byte Support**: Full support for Unicode, including CJK characters and emojis
 - 🎨 **Customizable**: Configure highlight colors, duration, and behavior
 - 🔧 **Smart Thresholds**: Automatically skips highlighting for massive changes to maintain performance
+- ✨ **Intuitive Highlighting**: Smart adjustments for word boundaries and whitespace changes
 
 ## Requirements
 
@@ -86,6 +87,12 @@ require('highlight-undo').setup({
   
   -- Debug mode
   debug = false,   -- Enable debug logging for troubleshooting
+  
+  -- Range adjustments for more intuitive highlighting
+  rangeAdjustments = {
+    adjustWordBoundaries = true,  -- Expand highlights to word boundaries
+    handleWhitespace = true,      -- Special handling for whitespace changes
+  },
 })
 ```
 

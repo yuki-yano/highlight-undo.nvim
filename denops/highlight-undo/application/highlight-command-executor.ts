@@ -7,6 +7,12 @@ import type { IErrorHandler } from "../error-handler.ts";
 import { createPerformanceMonitor, formatPerformanceMetrics, type IPerformanceMonitor } from "../performance.ts";
 import { computeRanges, type Range } from "../core/range-computer.ts";
 import { fillRangeGaps } from "../core/utils.ts";
+import { 
+  adjustNewlineBoundaries, 
+  adjustWordBoundaries, 
+  handleWhitespaceChanges,
+  mergeOverlappingRanges 
+} from "../core/range-adjuster.ts";
 import { Diff, fn } from "../deps.ts";
 
 type Command = "undo" | "redo";
@@ -94,6 +100,32 @@ function getByteLength(str: string): number {
   return new TextEncoder().encode(str).length;
 }
 
+function applyRangeAdjustments(
+  ranges: ReadonlyArray<Range>,
+  config: Config,
+): ReadonlyArray<Range> {
+  // Apply adjustments based on configuration
+  let adjustedRanges = ranges;
+  
+  // Always apply newline boundary adjustments (this is critical for correctness)
+  adjustedRanges = adjustNewlineBoundaries(adjustedRanges);
+  
+  // Apply word boundary adjustments if enabled
+  if (config.rangeAdjustments?.adjustWordBoundaries ?? true) {
+    adjustedRanges = adjustWordBoundaries(adjustedRanges);
+  }
+  
+  // Apply whitespace handling if enabled
+  if (config.rangeAdjustments?.handleWhitespace ?? true) {
+    adjustedRanges = handleWhitespaceChanges(adjustedRanges);
+  }
+  
+  // Always merge overlapping ranges to avoid duplicate highlights
+  adjustedRanges = mergeOverlappingRanges(adjustedRanges);
+  
+  return adjustedRanges;
+}
+
 function convertRangesWithEncoding(
   ranges: ReadonlyArray<Range>,
 ): ReadonlyArray<Range> {
@@ -138,8 +170,11 @@ async function highlight(
   try {
     const highlightGroup = changeType === "added" ? deps.config.highlight.added : deps.config.highlight.removed;
 
+    // Apply range adjustments for more intuitive highlighting
+    const adjustedRanges = applyRangeAdjustments(ranges, deps.config);
+    
     // Convert ranges with proper encoding
-    const convertedRanges = convertRangesWithEncoding(ranges);
+    const convertedRanges = convertRangesWithEncoding(adjustedRanges);
 
     await deps.highlightBatcher.applyHighlights(
       denops,
@@ -272,7 +307,10 @@ async function applyHighlightRanges(
   try {
     const highlightGroup = changeType === "added" ? deps.config.highlight.added : deps.config.highlight.removed;
 
-    const convertedRanges = convertRangesWithEncoding(ranges);
+    // Apply range adjustments for more intuitive highlighting
+    const adjustedRanges = applyRangeAdjustments(ranges, deps.config);
+    
+    const convertedRanges = convertRangesWithEncoding(adjustedRanges);
 
     await deps.highlightBatcher.applyHighlights(
       denops,

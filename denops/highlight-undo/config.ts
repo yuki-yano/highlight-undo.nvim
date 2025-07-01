@@ -73,6 +73,20 @@ export function validateConfig(userConfig: unknown): Config {
   if (uc.logFile !== undefined) {
     result.logFile = uc.logFile as string;
   }
+  if (uc.rangeAdjustments !== undefined) {
+    // Validate rangeAdjustments if provided
+    if (typeof uc.rangeAdjustments !== "object" || uc.rangeAdjustments === null) {
+      throw new Error("Config.rangeAdjustments must be an object");
+    }
+    const ra = uc.rangeAdjustments as Record<string, unknown>;
+    if (ra.adjustWordBoundaries !== undefined && typeof ra.adjustWordBoundaries !== "boolean") {
+      throw new Error("Config.rangeAdjustments.adjustWordBoundaries must be a boolean");
+    }
+    if (ra.handleWhitespace !== undefined && typeof ra.handleWhitespace !== "boolean") {
+      throw new Error("Config.rangeAdjustments.handleWhitespace must be a boolean");
+    }
+    result.rangeAdjustments = uc.rangeAdjustments as Config["rangeAdjustments"];
+  }
 
   return result;
 }
@@ -87,6 +101,7 @@ function mergeWithDefaults(userConfig: unknown, base?: Config): Config {
   const enabled = uc?.enabled as Record<string, unknown> | undefined;
   const highlight = uc?.highlight as Record<string, unknown> | undefined;
   const threshold = uc?.threshold as Record<string, unknown> | undefined;
+  const rangeAdjustments = uc?.rangeAdjustments as Record<string, unknown> | undefined;
 
   const defaults = base ?? defaultConfig;
 
@@ -119,6 +134,16 @@ function mergeWithDefaults(userConfig: unknown, base?: Config): Config {
   }
   if (logFile !== undefined) {
     result.logFile = logFile;
+  }
+  
+  // Handle rangeAdjustments
+  if (rangeAdjustments !== undefined || defaults.rangeAdjustments !== undefined) {
+    result.rangeAdjustments = {
+      adjustWordBoundaries: (rangeAdjustments?.adjustWordBoundaries as boolean | undefined) ?? 
+                           defaults.rangeAdjustments?.adjustWordBoundaries ?? true,
+      handleWhitespace: (rangeAdjustments?.handleWhitespace as boolean | undefined) ?? 
+                       defaults.rangeAdjustments?.handleWhitespace ?? true,
+    };
   }
 
   return result;
