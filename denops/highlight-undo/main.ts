@@ -6,41 +6,10 @@ import { createPerformanceMonitor, formatPerformanceMetrics } from "./performanc
 import { Config, validateConfig } from "./config.ts";
 import { createErrorHandler } from "./error-handler.ts";
 import { createCommandQueue, createLockManager } from "./application/command-queue.ts";
-import { createHighlightCommandExecutor } from "./application/highlight-command-executor.ts";
+import { applyRangeAdjustments, createHighlightCommandExecutor } from "./application/highlight-command-executor.ts";
 import { computeRanges } from "./core/range-computer.ts";
 import { fillRangeGaps } from "./core/utils.ts";
-import { getByteLength } from "./core/encoding.ts";
-
-// Helper function for byte encoding conversion
-function convertRangesWithEncoding(
-  ranges: ReadonlyArray<ReturnType<typeof computeRanges>[number]>,
-): ReadonlyArray<ReturnType<typeof computeRanges>[number]> {
-  return ranges.map((range) => {
-    if (range.changeType === "removed" && !range.lineText) {
-      return {
-        ...range,
-        col: {
-          start: 0,
-          end: 0,
-        },
-      };
-    }
-
-    const beforeText = range.lineText.substring(0, range.col.start);
-    const matchText = range.lineText.substring(range.col.start, range.col.end);
-
-    const byteStart = getByteLength(beforeText);
-    const byteEnd = byteStart + getByteLength(matchText);
-
-    return {
-      ...range,
-      col: {
-        start: byteStart,
-        end: byteEnd,
-      },
-    };
-  });
-}
+import { convertRangesWithEncoding } from "./core/range-encoding.ts";
 
 type Command = "undo" | "redo";
 
@@ -314,8 +283,20 @@ export const main = async (denops: Denops): Promise<void> => {
             belowLine: lineInfo.belowLine,
           });
 
+          if (debugMode) {
+            console.log(`[highlight-undo] Removed ranges before fillRangeGaps:`, JSON.stringify(removedRanges));
+            console.log(`[highlight-undo] Filled ranges:`, JSON.stringify(filledRanges));
+          }
+
           if (filledRanges.length > 0) {
-            const convertedRanges = convertRangesWithEncoding(filledRanges);
+            // Apply range adjustments before encoding conversion
+            const adjustedRanges = applyRangeAdjustments(filledRanges, config);
+
+            if (debugMode) {
+              console.log(`[highlight-undo] Adjusted ranges:`, JSON.stringify(adjustedRanges));
+            }
+
+            const convertedRanges = convertRangesWithEncoding(adjustedRanges);
             await highlightBatcher.applyHighlights(
               denops,
               convertedRanges,

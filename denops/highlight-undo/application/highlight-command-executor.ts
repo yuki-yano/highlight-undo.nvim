@@ -10,10 +10,13 @@ import { fillRangeGaps } from "../core/utils.ts";
 import {
   adjustNewlineBoundaries,
   adjustWordBoundaries,
+  detectAndAdjustFullLineAddition,
+  detectAndAdjustFullLineDeletion,
   handleWhitespaceChanges,
   mergeOverlappingRanges,
 } from "../core/range-adjuster.ts";
 import { applyHeuristicStrategy } from "../core/heuristic-strategy.ts";
+import { convertRangesWithEncoding } from "../core/range-encoding.ts";
 import { Diff, fn } from "../deps.ts";
 
 type Command = "undo" | "redo";
@@ -99,11 +102,7 @@ function calculateDiff(
   return result;
 }
 
-function getByteLength(str: string): number {
-  return new TextEncoder().encode(str).length;
-}
-
-function applyRangeAdjustments(
+export function applyRangeAdjustments(
   ranges: ReadonlyArray<Range>,
   config: Config,
 ): ReadonlyArray<Range> {
@@ -117,6 +116,10 @@ function applyRangeAdjustments(
 
   // Always apply newline boundary adjustments (this is critical for correctness)
   adjustedRanges = adjustNewlineBoundaries(adjustedRanges);
+
+  // Detect and adjust full line deletions/additions before word boundary adjustments
+  adjustedRanges = detectAndAdjustFullLineDeletion(adjustedRanges);
+  adjustedRanges = detectAndAdjustFullLineAddition(adjustedRanges);
 
   // Apply word boundary adjustments if enabled
   if (config.rangeAdjustments?.adjustWordBoundaries ?? true) {
@@ -134,41 +137,14 @@ function applyRangeAdjustments(
   return adjustedRanges;
 }
 
-function convertRangesWithEncoding(
-  ranges: ReadonlyArray<Range>,
-): ReadonlyArray<Range> {
-  return ranges.map((range) => {
-    if (range.changeType === "removed" && !range.lineText) {
-      return {
-        ...range,
-        col: {
-          start: 0,
-          end: 0,
-        },
-      };
-    }
-
-    const beforeText = range.lineText.substring(0, range.col.start);
-    const matchText = range.lineText.substring(range.col.start, range.col.end);
-
-    const byteStart = getByteLength(beforeText);
-    const byteEnd = byteStart + getByteLength(matchText);
-
-    return {
-      ...range,
-      col: {
-        start: byteStart,
-        end: byteEnd,
-      },
-    };
-  });
-}
-
-async function highlight(
+/**
+ * Apply highlights to ranges without automatic clearing.
+ * Used when manual control over clearing is needed.
+ */
+async function applyHighlightWithoutClear(
   denops: Denops,
   ranges: ReadonlyArray<Range>,
   changeType: "added" | "removed",
-  bufnr: number,
   deps: HighlightCommandExecutorDeps,
 ): Promise<void> {
   if (ranges.length === 0) {
@@ -181,6 +157,10 @@ async function highlight(
     // Apply range adjustments for more intuitive highlighting
     const adjustedRanges = applyRangeAdjustments(ranges, deps.config);
 
+    if (deps.debugMode) {
+      console.log(`[highlight-undo] Adjusted ranges:`, JSON.stringify(adjustedRanges));
+    }
+
     // Convert ranges with proper encoding
     const convertedRanges = convertRangesWithEncoding(adjustedRanges);
 
@@ -190,10 +170,38 @@ async function highlight(
       deps.nameSpace,
       highlightGroup,
     );
+  } catch (error) {
+    await deps.errorHandler.handle(denops, error, {
+      phase: "applyHighlightWithoutClear",
+      changeType,
+      rangeCount: ranges.length,
+    });
+  }
+}
+
+/**
+ * Apply highlights with automatic clearing after duration.
+ * This is the standard highlight flow.
+ */
+async function highlight(
+  denops: Denops,
+  ranges: ReadonlyArray<Range>,
+  changeType: "added" | "removed",
+  bufnr: number,
+  deps: HighlightCommandExecutorDeps,
+): Promise<void> {
+  if (ranges.length === 0) {
+    return;
+  }
+
+  try {
+    // Apply highlights
+    await applyHighlightWithoutClear(denops, ranges, changeType, deps);
 
     // Wait for the specified duration before clearing highlights
     await new Promise((resolve) => setTimeout(resolve, deps.config.duration));
 
+    // Clear highlights
     await deps.highlightBatcher.clearHighlights(
       denops,
       deps.nameSpace,
@@ -301,40 +309,15 @@ async function applyHighlights(
   }
 }
 
-async function applyHighlightRanges(
-  denops: Denops,
-  ranges: ReadonlyArray<Range>,
-  changeType: "added" | "removed",
-  _bufnr: number,
-  deps: HighlightCommandExecutorDeps,
-): Promise<void> {
-  if (ranges.length === 0) {
-    return;
-  }
-
-  try {
-    const highlightGroup = changeType === "added" ? deps.config.highlight.added : deps.config.highlight.removed;
-
-    // Apply range adjustments for more intuitive highlighting
-    const adjustedRanges = applyRangeAdjustments(ranges, deps.config);
-
-    const convertedRanges = convertRangesWithEncoding(adjustedRanges);
-
-    await deps.highlightBatcher.applyHighlights(
-      denops,
-      convertedRanges,
-      deps.nameSpace,
-      highlightGroup,
-    );
-  } catch (error) {
-    await deps.errorHandler.handle(denops, error, {
-      phase: "applyHighlightRanges",
-      changeType,
-      rangeCount: ranges.length,
-    });
-  }
-}
-
+/**
+ * Special highlight flow for removal operations.
+ * Shows what will be removed BEFORE executing the command.
+ *
+ * Flow: Highlight removed parts → Wait → Execute command → Clear highlights
+ *
+ * This is different from the standard flow where we execute first then highlight.
+ * Used when we want to show users what will disappear before it actually does.
+ */
 async function applyHighlightsWithDelayedCommand(
   denops: Denops,
   diffResult: DiffResult,
@@ -346,7 +329,7 @@ async function applyHighlightsWithDelayedCommand(
 ): Promise<void> {
   const { changes, lineInfo } = diffResult;
 
-  // Only highlight removals for undo command
+  // Only highlight removals (we show what will be removed before removal)
   if (deps.config.enabled.removed) {
     const removedRanges = computeRanges({
       changes,
@@ -376,7 +359,7 @@ async function applyHighlightsWithDelayedCommand(
           `[highlight-undo] Applying highlight for removal, ranges: ${filledRanges.length}, duration: ${deps.config.duration}ms`,
         );
       }
-      await applyHighlightRanges(denops, filledRanges, "removed", bufnr, deps);
+      await applyHighlightWithoutClear(denops, filledRanges, "removed", deps);
 
       // Wait for duration
       if (deps.debugMode) {

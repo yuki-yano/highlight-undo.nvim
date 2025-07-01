@@ -1,4 +1,4 @@
-import type { Range } from "./range-computer.ts";
+import type { ChangeType, Range } from "./range-computer.ts";
 
 /**
  * Adjusts ranges that cross newline boundaries to be more intuitive
@@ -448,4 +448,65 @@ export function mergeOverlappingRanges(ranges: ReadonlyArray<Range>): ReadonlyAr
   merged.push(current);
 
   return merged;
+}
+
+/**
+ * Helper function to detect and adjust full line changes
+ */
+function detectAndAdjustFullLineChange(
+  ranges: ReadonlyArray<Range>,
+  targetChangeType: ChangeType,
+): ReadonlyArray<Range> {
+  return ranges.map((range) => {
+    // Only process ranges of the target change type
+    if (range.changeType !== targetChangeType) {
+      return range;
+    }
+
+    const { lineText, col } = range;
+
+    // Check if the change extends to the end of the line
+    const isEndOfLine = col.end === lineText.length;
+
+    // Check if the change starts from a non-zero column but covers the rest of the line
+    const startsAfterIndent = col.start > 0 && isEndOfLine;
+
+    // Check if the text before the change is only whitespace
+    const textBefore = lineText.substring(0, col.start);
+    const isOnlyWhitespaceBefore = /^\s*$/.test(textBefore);
+
+    // If change extends to end of line and only whitespace before it,
+    // this is likely a full line operation
+    if (startsAfterIndent && isOnlyWhitespaceBefore) {
+      return {
+        ...range,
+        col: {
+          start: 0,
+          end: lineText.length,
+        },
+        matchText: lineText,
+      };
+    }
+
+    return range;
+  });
+}
+
+/**
+ * Detects and adjusts full line deletions to include leading spaces
+ */
+export function detectAndAdjustFullLineDeletion(
+  ranges: ReadonlyArray<Range>,
+): ReadonlyArray<Range> {
+  return detectAndAdjustFullLineChange(ranges, "removed");
+}
+
+/**
+ * Detects and adjusts full line additions to include leading spaces
+ * (for undo operations that restore deleted lines)
+ */
+export function detectAndAdjustFullLineAddition(
+  ranges: ReadonlyArray<Range>,
+): ReadonlyArray<Range> {
+  return detectAndAdjustFullLineChange(ranges, "added");
 }
