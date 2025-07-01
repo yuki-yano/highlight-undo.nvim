@@ -1,20 +1,24 @@
 import type { Range } from "./range-computer.ts";
 
-export enum ChangeSize {
-  Tiny = "tiny", // 1-5 characters
-  Small = "small", // 5-20 characters
-  Medium = "medium", // 20-100 characters
-  Large = "large", // 100+ characters
-}
+export const ChangeSize = {
+  Tiny: "tiny", // 1-5 characters
+  Small: "small", // 5-20 characters
+  Medium: "medium", // 20-100 characters
+  Large: "large", // 100+ characters
+} as const;
 
-export enum DisplayStrategy {
-  Character = "character", // Display in detail by character
-  Word = "word", // Display by word
-  Line = "line", // Display by line
-  Block = "block", // Display multiple lines as a block
-}
+export type ChangeSize = typeof ChangeSize[keyof typeof ChangeSize];
 
-export interface HeuristicConfig {
+export const DisplayStrategy = {
+  Character: "character", // Display in detail by character
+  Word: "word", // Display by word
+  Line: "line", // Display by line
+  Block: "block", // Display multiple lines as a block
+} as const;
+
+export type DisplayStrategy = typeof DisplayStrategy[keyof typeof DisplayStrategy];
+
+export type HeuristicConfig = {
   enabled?: boolean;
   thresholds?: {
     tiny?: number; // default: 5
@@ -27,7 +31,7 @@ export interface HeuristicConfig {
     [ChangeSize.Medium]?: DisplayStrategy; // default: Line
     [ChangeSize.Large]?: DisplayStrategy; // default: Block
   };
-}
+};
 
 const DEFAULT_THRESHOLDS = {
   tiny: 5,
@@ -66,9 +70,9 @@ export function evaluateChangeSize(
  */
 export function selectDisplayStrategy(
   size: ChangeSize,
-  strategies: typeof DEFAULT_STRATEGIES = DEFAULT_STRATEGIES,
+  strategies: Partial<Record<ChangeSize, DisplayStrategy>> = DEFAULT_STRATEGIES,
 ): DisplayStrategy {
-  return strategies[size];
+  return strategies[size] ?? DEFAULT_STRATEGIES[size];
 }
 
 /**

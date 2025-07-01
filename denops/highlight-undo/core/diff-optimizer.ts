@@ -144,11 +144,32 @@ export function createDiffOptimizer(maxCacheEntries = 100): IDiffOptimizer {
     const changes = diffChars(before, after);
     const lineChanges = diffLines(before, after);
 
-    const [above, ..._below] = lineChanges;
-    const below = _below.at(-1);
-    const aboveLine = above.count! + 1;
+    // Calculate the actual range of changed lines
+    let aboveLine = 1;
+    let belowLine = 1;
+    let currentLine = 1;
 
-    const belowLine = below?.count != null ? after.split("\n").length - below.count! + 1 : aboveLine;
+    for (const change of lineChanges) {
+      if (change.added || change.removed) {
+        if (aboveLine === 1 || currentLine < aboveLine) {
+          aboveLine = currentLine;
+        }
+        if (currentLine > belowLine) {
+          belowLine = currentLine;
+        }
+        // For multi-line changes, update belowLine to include all affected lines
+        if (change.count) {
+          const endLine = currentLine + change.count - 1;
+          if (endLine > belowLine) {
+            belowLine = endLine;
+          }
+        }
+      }
+      // Only increment currentLine for non-removed changes
+      if (!change.removed && change.count) {
+        currentLine += change.count;
+      }
+    }
 
     const result: DiffResult = {
       changes,

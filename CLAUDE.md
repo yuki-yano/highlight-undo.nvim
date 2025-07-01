@@ -180,6 +180,12 @@ deno test denops/highlight-undo/core/diff-optimizer_test.ts
 - **空白の特別処理**: インデント変更や行末空白の変更をより見やすく表示
 - 設定可能なオプション: `rangeAdjustments.adjustWordBoundaries`と`rangeAdjustments.handleWhitespace`
 
+### 複数行変更の範囲計算修正（2025-01-01修正）
+
+- **fillRangeGapsの範囲計算改善**: 複数の変更チャンクがある場合、全ての変更範囲を正確に計算
+- 以前は最初と最後のチャンクのみを見ていたため、中間のチャンクが除外される問題を修正
+- `diff-optimizer.ts`で全ての変更チャンクを走査し、実際の変更範囲（aboveLine/belowLine）を正確に計算
+
 ## デバッグ機能
 
 デバッグモードを有効にすると、詳細なログが出力されます：

@@ -1,6 +1,7 @@
 // Auto-generated config module using unified schema
 import { Config, ConfigSchema, defaultConfig, PartialConfig, PartialConfigSchema } from "./config-schema.ts";
 import { z } from "./deps.ts";
+import { ChangeSize, DisplayStrategy } from "./core/heuristic-strategy.ts";
 
 export type { Config, PartialConfig };
 
@@ -9,7 +10,7 @@ export function validateConfig(userConfig: unknown): Config {
     return ConfigSchema.parse(userConfig);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      const issues = error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
+      const issues = error.errors.map((e) => `${e.path.join(".")}: ${e.message}`).join(", ");
       throw new Error(`Config validation failed: ${issues}`);
     }
     throw error;
@@ -18,14 +19,14 @@ export function validateConfig(userConfig: unknown): Config {
 
 export function mergeConfig(userConfig: unknown, base?: Config): Config {
   const defaults = base ?? defaultConfig;
-  
+
   // Parse the partial config
   let partialConfig: PartialConfig;
   try {
     partialConfig = PartialConfigSchema.parse(userConfig ?? {});
   } catch (error) {
     if (error instanceof z.ZodError) {
-      const issues = error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
+      const issues = error.errors.map((e) => `${e.path.join(".")}: ${e.message}`).join(", ");
       throw new Error(`Config validation failed: ${issues}`);
     }
     throw error;
@@ -63,9 +64,9 @@ export function mergeConfig(userConfig: unknown, base?: Config): Config {
   // Handle rangeAdjustments
   if (partialConfig.rangeAdjustments !== undefined || defaults.rangeAdjustments !== undefined) {
     merged.rangeAdjustments = {
-      adjustWordBoundaries: partialConfig.rangeAdjustments?.adjustWordBoundaries ?? 
+      adjustWordBoundaries: partialConfig.rangeAdjustments?.adjustWordBoundaries ??
         defaults.rangeAdjustments?.adjustWordBoundaries ?? true,
-      handleWhitespace: partialConfig.rangeAdjustments?.handleWhitespace ?? 
+      handleWhitespace: partialConfig.rangeAdjustments?.handleWhitespace ??
         defaults.rangeAdjustments?.handleWhitespace ?? true,
     };
   }
@@ -73,18 +74,18 @@ export function mergeConfig(userConfig: unknown, base?: Config): Config {
   // Handle heuristics
   if (partialConfig.heuristics !== undefined || defaults.heuristics !== undefined) {
     merged.heuristics = {
-      enabled: partialConfig.heuristics?.enabled ?? 
+      enabled: partialConfig.heuristics?.enabled ??
         defaults.heuristics?.enabled ?? true,
     };
 
     // Merge thresholds
     if (partialConfig.heuristics?.thresholds !== undefined || defaults.heuristics?.thresholds !== undefined) {
       merged.heuristics.thresholds = {
-        tiny: partialConfig.heuristics?.thresholds?.tiny ?? 
+        tiny: partialConfig.heuristics?.thresholds?.tiny ??
           defaults.heuristics?.thresholds?.tiny ?? 5,
-        small: partialConfig.heuristics?.thresholds?.small ?? 
+        small: partialConfig.heuristics?.thresholds?.small ??
           defaults.heuristics?.thresholds?.small ?? 20,
-        medium: partialConfig.heuristics?.thresholds?.medium ?? 
+        medium: partialConfig.heuristics?.thresholds?.medium ??
           defaults.heuristics?.thresholds?.medium ?? 100,
       };
     }
@@ -92,14 +93,14 @@ export function mergeConfig(userConfig: unknown, base?: Config): Config {
     // Merge strategies
     if (partialConfig.heuristics?.strategies !== undefined || defaults.heuristics?.strategies !== undefined) {
       merged.heuristics.strategies = {
-        tiny: partialConfig.heuristics?.strategies?.tiny ?? 
-          defaults.heuristics?.strategies?.tiny ?? "character",
-        small: partialConfig.heuristics?.strategies?.small ?? 
-          defaults.heuristics?.strategies?.small ?? "word",
-        medium: partialConfig.heuristics?.strategies?.medium ?? 
-          defaults.heuristics?.strategies?.medium ?? "line",
-        large: partialConfig.heuristics?.strategies?.large ?? 
-          defaults.heuristics?.strategies?.large ?? "block",
+        [ChangeSize.Tiny]: (partialConfig.heuristics?.strategies?.tiny ??
+          defaults.heuristics?.strategies?.tiny ?? "character") as DisplayStrategy,
+        [ChangeSize.Small]: (partialConfig.heuristics?.strategies?.small ??
+          defaults.heuristics?.strategies?.small ?? "word") as DisplayStrategy,
+        [ChangeSize.Medium]: (partialConfig.heuristics?.strategies?.medium ??
+          defaults.heuristics?.strategies?.medium ?? "line") as DisplayStrategy,
+        [ChangeSize.Large]: (partialConfig.heuristics?.strategies?.large ??
+          defaults.heuristics?.strategies?.large ?? "block") as DisplayStrategy,
       };
     }
   }

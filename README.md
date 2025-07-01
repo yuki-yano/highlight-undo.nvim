@@ -254,6 +254,13 @@ deno run --allow-all denops/highlight-undo/performance-benchmark.ts
 
 MIT License - see [LICENSE](LICENSE) file for details
 
+## Recent Improvements
+
+### v1.1.0 (2025-01-01)
+
+- **Fixed multi-line change highlighting**: Improved range calculation to correctly highlight all changed lines in complex undo/redo operations
+- **Better handling of multiple change chunks**: All intermediate changes are now properly highlighted, not just the first and last chunks
+
 ## Credits
 
 - Built with [denops.vim](https://github.com/vim-denops/denops.vim) - the excellent Deno-based plugin framework

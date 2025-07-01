@@ -135,4 +135,60 @@ describe("DiffOptimizer", () => {
     assertEquals(result1 !== null, true);
     assertEquals(result2 !== null, true);
   });
+
+  it("should correctly calculate lineInfo for multiple change chunks", () => {
+    const optimizer = createDiffOptimizer();
+
+    // Simulate the case from the bug report: multiple non-contiguous changes
+    const before = `line1
+line2
+line3
+await getPreCodeAndPostCode({
+  denops,
+  command: command as string,
+  counterCommand: counterCommand as string,
+  bufnr,
+});
+line10
+line11`;
+
+    const after = `line1
+line2
+line3
+line10
+line11`;
+
+    const result = optimizer.calculateDiff(before, after, { line: 50, char: 1500 });
+
+    assertEquals(result !== null, true);
+    // The changes span from line 4 to line 9 (6 lines removed)
+    assertEquals(result!.lineInfo.aboveLine, 4);
+    assertEquals(result!.lineInfo.belowLine, 9);
+  });
+
+  it("should handle multiple separated change chunks", () => {
+    const optimizer = createDiffOptimizer();
+
+    const before = `line1
+line2
+removed1
+line4
+line5
+removed2
+removed3
+line8`;
+
+    const after = `line1
+line2
+line4
+line5
+line8`;
+
+    const result = optimizer.calculateDiff(before, after, { line: 50, char: 1500 });
+
+    assertEquals(result !== null, true);
+    // Changes span from line 3 (first removed) to line 6 (last removed in after context)
+    assertEquals(result!.lineInfo.aboveLine, 3);
+    assertEquals(result!.lineInfo.belowLine, 6);
+  });
 });
