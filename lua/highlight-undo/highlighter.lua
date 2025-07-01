@@ -72,6 +72,10 @@ function M.batch_apply_highlights(namespace, highlight_group, ranges)
 
   -- Schedule the highlight application to avoid conflicts
   vim.schedule(function()
+    -- Clear existing highlights in the namespace before applying new ones
+    vim.api.nvim_buf_clear_namespace(0, namespace, 0, -1)
+    
+    
     -- Check if highlight group exists and get its properties
     local hl_exists = vim.fn.hlexists(highlight_group) == 1
     if not hl_exists then
@@ -135,10 +139,9 @@ function M.batch_apply_highlights(namespace, highlight_group, ranges)
       end
 
       -- Apply merged ranges
-      for _, range in ipairs(merged_ranges) do
+      for idx, range in ipairs(merged_ranges) do
         -- Skip empty ranges
         if range.col_start == range.col_end then
-        -- print(string.format("  Skipping empty range at line %d", range.lnum))
         else
           -- Debug: Only log the first range
           -- Commenting out to reduce noise

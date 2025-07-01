@@ -56,6 +56,16 @@ function M.setup(opts)
 
   initialized = true
   M.enable()
+
+  -- Set up autocmds for buffer cleanup
+  local augroup = vim.api.nvim_create_augroup('HighlightUndo', { clear = true })
+  vim.api.nvim_create_autocmd({ 'BufDelete', 'BufUnload' }, {
+    group = augroup,
+    callback = function(args)
+      vim.fn['highlight_undo#notify']('bufferDelete', { args.buf })
+    end,
+  })
+
   vim.fn['highlight_undo#request']('setup', { config })
 end
 
