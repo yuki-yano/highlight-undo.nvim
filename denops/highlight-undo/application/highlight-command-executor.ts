@@ -109,20 +109,15 @@ function calculateDiff(
     // Convert hybrid diff to ranges
     const ranges = computeHybridRanges(hybridResult, beforeLines, afterLines);
 
-    // Convert ranges to DiffResult format
-    const changes: Diff.Change[] = ranges.map((range) => ({
-      value: range.matchText,
-      added: range.changeType === "added",
-      removed: range.changeType === "removed",
-      count: range.matchText.length,
-    }));
-
+    // Store ranges in a special property for hybrid diff
     return {
-      changes,
+      changes: [],
       lineInfo: {
         aboveLine: Math.min(...ranges.map((r) => r.lnum), 1),
         belowLine: Math.max(...ranges.map((r) => r.lnum), afterLines.length),
       },
+      // Add ranges directly for hybrid diff
+      hybridRanges: ranges,
     };
   }
 
@@ -302,6 +297,36 @@ async function applyHighlights(
   perf: IPerformanceMonitor | null,
   deps: HighlightCommandExecutorDeps,
 ): Promise<void> {
+  // If hybrid ranges are available, use them directly
+  if (diffResult.hybridRanges) {
+    const addedRanges = diffResult.hybridRanges.filter(r => r.changeType === "added");
+    const removedRanges = diffResult.hybridRanges.filter(r => r.changeType === "removed");
+
+    if (addedRanges.length > 0 && deps.config.enabled.added) {
+      const filledRanges = fillRangeGaps({
+        ranges: addedRanges,
+        aboveLine: diffResult.lineInfo.aboveLine,
+        belowLine: diffResult.lineInfo.belowLine,
+      });
+      
+      perf?.mark("highlightApplication");
+      await highlight(denops, filledRanges, "added", bufnr, deps);
+    }
+
+    if (removedRanges.length > 0 && deps.config.enabled.removed) {
+      const filledRanges = fillRangeGaps({
+        ranges: removedRanges,
+        aboveLine: diffResult.lineInfo.aboveLine,
+        belowLine: diffResult.lineInfo.belowLine,
+      });
+      
+      perf?.mark("highlightApplication");
+      await highlight(denops, filledRanges, "removed", bufnr, deps);
+    }
+    return;
+  }
+
+  // Use regular change-based highlighting
   const { changes, lineInfo } = diffResult;
   const hasAdditions = changes.some((change) => change.added);
   const hasRemovals = changes.some((change) => change.removed);
@@ -376,16 +401,23 @@ async function applyHighlightsWithDelayedCommand(
   _perf: IPerformanceMonitor | null,
   deps: HighlightCommandExecutorDeps,
 ): Promise<void> {
-  const { changes, lineInfo } = diffResult;
-
   // Only highlight removals for undo command
   if (deps.config.enabled.removed) {
-    const removedRanges = computeRanges({
-      changes,
-      beforeCode: state.preCode,
-      afterCode: state.postCode,
-      changeType: "removed",
-    });
+    let removedRanges: ReadonlyArray<Range>;
+
+    // If hybrid ranges are available, use them directly
+    if (diffResult.hybridRanges) {
+      removedRanges = diffResult.hybridRanges.filter(r => r.changeType === "removed");
+    } else {
+      // Use regular change-based computation
+      const { changes } = diffResult;
+      removedRanges = computeRanges({
+        changes,
+        beforeCode: state.preCode,
+        afterCode: state.postCode,
+        changeType: "removed",
+      });
+    }
 
     if (deps.debugMode) {
       console.log(`[highlight-undo] Removed ranges before fillRangeGaps:`, removedRanges);
@@ -393,8 +425,8 @@ async function applyHighlightsWithDelayedCommand(
 
     const filledRanges = fillRangeGaps({
       ranges: removedRanges,
-      aboveLine: lineInfo.aboveLine,
-      belowLine: lineInfo.belowLine,
+      aboveLine: diffResult.lineInfo.aboveLine,
+      belowLine: diffResult.lineInfo.belowLine,
     });
 
     if (deps.debugMode) {
@@ -491,8 +523,16 @@ export function createHighlightCommandExecutor(
       }
 
       // Check if there are removals (regardless of undo/redo)
-      const hasRemovals = diffResult.changes.some((c) => c.removed);
-      const hasAdditions = diffResult.changes.some((c) => c.added);
+      let hasRemovals: boolean;
+      let hasAdditions: boolean;
+      
+      if (diffResult.hybridRanges) {
+        hasRemovals = diffResult.hybridRanges.some((r) => r.changeType === "removed");
+        hasAdditions = diffResult.hybridRanges.some((r) => r.changeType === "added");
+      } else {
+        hasRemovals = diffResult.changes.some((c) => c.removed);
+        hasAdditions = diffResult.changes.some((c) => c.added);
+      }
 
       if (deps.debugMode) {
         console.log(
