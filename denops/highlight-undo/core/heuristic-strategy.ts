@@ -1,17 +1,17 @@
 import type { Range } from "./range-computer.ts";
 
 export enum ChangeSize {
-  Tiny = "tiny", // 1-5文字
-  Small = "small", // 5-20文字
-  Medium = "medium", // 20-100文字
-  Large = "large", // 100文字以上
+  Tiny = "tiny", // 1-5 characters
+  Small = "small", // 5-20 characters
+  Medium = "medium", // 20-100 characters
+  Large = "large", // 100+ characters
 }
 
 export enum DisplayStrategy {
-  Character = "character", // 文字単位で詳細に表示
-  Word = "word", // 単語単位で表示
-  Line = "line", // 行単位で表示
-  Block = "block", // 複数行をブロックとして表示
+  Character = "character", // Display in detail by character
+  Word = "word", // Display by word
+  Line = "line", // Display by line
+  Block = "block", // Display multiple lines as a block
 }
 
 export interface HeuristicConfig {
@@ -43,7 +43,7 @@ const DEFAULT_STRATEGIES = {
 };
 
 /**
- * 変更のサイズを評価
+ * Evaluate the size of changes
  */
 export function evaluateChangeSize(
   ranges: ReadonlyArray<Range>,
@@ -62,7 +62,7 @@ export function evaluateChangeSize(
 }
 
 /**
- * サイズに応じた表示戦略を選択
+ * Select display strategy based on size
  */
 export function selectDisplayStrategy(
   size: ChangeSize,
@@ -72,7 +72,7 @@ export function selectDisplayStrategy(
 }
 
 /**
- * 同じ行の連続する変更をグループ化
+ * Group consecutive changes on the same line
  */
 function _groupConsecutiveRanges(ranges: ReadonlyArray<Range>): Range[][] {
   if (ranges.length === 0) return [];
@@ -84,12 +84,12 @@ function _groupConsecutiveRanges(ranges: ReadonlyArray<Range>): Range[][] {
     const prev = ranges[i - 1];
     const curr = ranges[i];
 
-    // 同じ行で、同じタイプで、隣接または近い場合はグループ化
+    // Group if on the same line, same type, and adjacent or close
     if (
       prev.lnum === curr.lnum &&
       prev.changeType === curr.changeType &&
       curr.col.start - prev.col.end <= 5
-    ) { // 5文字以内の距離
+    ) { // Within 5 characters distance
       currentGroup.push(curr);
     } else {
       groups.push(currentGroup);
@@ -105,7 +105,7 @@ function _groupConsecutiveRanges(ranges: ReadonlyArray<Range>): Range[][] {
 }
 
 /**
- * 戦略に基づいて範囲を調整
+ * Adjust ranges based on strategy
  */
 export function applyHeuristicStrategy(
   ranges: ReadonlyArray<Range>,
@@ -123,19 +123,19 @@ export function applyHeuristicStrategy(
 
   switch (strategy) {
     case DisplayStrategy.Character:
-      // 文字単位：そのまま返す
+      // Character unit: return as is
       return ranges;
 
     case DisplayStrategy.Word:
-      // 単語単位：単語境界まで拡張（既存のadjustWordBoundariesを利用）
-      return ranges; // range-adjusterで処理される
+      // Word unit: extend to word boundaries (uses existing adjustWordBoundaries)
+      return ranges; // Processed by range-adjuster
 
     case DisplayStrategy.Line:
-      // 行単位：同じ行の変更をマージ
+      // Line unit: merge changes on the same line
       return mergeRangesInSameLine(ranges);
 
     case DisplayStrategy.Block:
-      // ブロック単位：連続する行の変更をマージ
+      // Block unit: merge changes on consecutive lines
       return mergeRangesInBlock(ranges);
 
     default:
@@ -144,12 +144,12 @@ export function applyHeuristicStrategy(
 }
 
 /**
- * 同じ行の変更をマージ
+ * Merge changes on the same line
  */
 function mergeRangesInSameLine(ranges: ReadonlyArray<Range>): ReadonlyArray<Range> {
   if (ranges.length === 0) return [];
 
-  // 行番号でグループ化
+  // Group by line number
   const lineGroups = new Map<number, Range[]>();
   for (const range of ranges) {
     const group = lineGroups.get(range.lnum) || [];
@@ -164,7 +164,7 @@ function mergeRangesInSameLine(ranges: ReadonlyArray<Range>): ReadonlyArray<Rang
       continue;
     }
 
-    // 同じ行の範囲を変更タイプごとにグループ化
+    // Group ranges on the same line by change type
     const typeGroups = new Map<string, Range[]>();
     for (const range of group) {
       const typeGroup = typeGroups.get(range.changeType) || [];
@@ -172,19 +172,19 @@ function mergeRangesInSameLine(ranges: ReadonlyArray<Range>): ReadonlyArray<Rang
       typeGroups.set(range.changeType, typeGroup);
     }
 
-    // 各タイプグループをマージ
+    // Merge each type group
     for (const [_, typeGroup] of typeGroups) {
       if (typeGroup.length === 1) {
         result.push(typeGroup[0]);
         continue;
       }
 
-      // 範囲をソート
+      // Sort ranges
       const sorted = [...typeGroup].sort((a, b) => a.col.start - b.col.start);
       const first = sorted[0];
       // const last = sorted[sorted.length - 1]; // Not used currently
 
-      // 行全体をハイライト（Line戦略なので）
+      // Highlight entire line (because it's Line strategy)
       result.push({
         ...first,
         col: {
@@ -203,7 +203,7 @@ function mergeRangesInSameLine(ranges: ReadonlyArray<Range>): ReadonlyArray<Rang
 }
 
 /**
- * 連続する行の変更をブロックとしてマージ
+ * Merge changes on consecutive lines as blocks
  */
 function mergeRangesInBlock(ranges: ReadonlyArray<Range>): ReadonlyArray<Range> {
   if (ranges.length === 0) return [];
@@ -215,11 +215,11 @@ function mergeRangesInBlock(ranges: ReadonlyArray<Range>): ReadonlyArray<Range> 
     const prev = ranges[i - 1];
     const curr = ranges[i];
 
-    // 隣接する行で同じタイプの場合はブロック化
+    // Block if adjacent lines with same type
     if (curr.lnum - prev.lnum <= 1 && prev.changeType === curr.changeType) {
       currentBlock.push(curr);
     } else {
-      // ブロックをマージして追加
+      // Merge and add block
       if (currentBlock.length > 1) {
         result.push(...mergeBlockRanges(currentBlock));
       } else {
@@ -229,7 +229,7 @@ function mergeRangesInBlock(ranges: ReadonlyArray<Range>): ReadonlyArray<Range> 
     }
   }
 
-  // 最後のブロックを処理
+  // Process the last block
   if (currentBlock.length > 1) {
     result.push(...mergeBlockRanges(currentBlock));
   } else {
@@ -240,10 +240,10 @@ function mergeRangesInBlock(ranges: ReadonlyArray<Range>): ReadonlyArray<Range> 
 }
 
 /**
- * ブロック内の範囲をマージ
+ * Merge ranges within a block
  */
 function mergeBlockRanges(block: Range[]): Range[] {
-  // 各行を行全体の変更として扱う
+  // Treat each line as a whole line change
   return block.map((range) => ({
     ...range,
     col: {
