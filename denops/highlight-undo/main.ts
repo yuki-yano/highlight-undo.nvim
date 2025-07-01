@@ -6,7 +6,41 @@ import { createPerformanceMonitor, formatPerformanceMetrics } from "./performanc
 import { Config, validateConfig } from "./config.ts";
 import { createErrorHandler } from "./error-handler.ts";
 import { createCommandQueue, createLockManager } from "./application/command-queue.ts";
-import { HighlightCommandExecutor } from "./application/highlight-command-executor.ts";
+import { createHighlightCommandExecutor } from "./application/highlight-command-executor.ts";
+import { computeRanges } from "./core/range-computer.ts";
+import { fillRangeGaps } from "./core/utils.ts";
+import { getByteLength } from "./core/encoding.ts";
+
+// Helper function for byte encoding conversion
+function convertRangesWithEncoding(
+  ranges: ReadonlyArray<ReturnType<typeof computeRanges>[number]>,
+): ReadonlyArray<ReturnType<typeof computeRanges>[number]> {
+  return ranges.map((range) => {
+    if (range.changeType === "removed" && !range.lineText) {
+      return {
+        ...range,
+        col: {
+          start: 0,
+          end: 0,
+        },
+      };
+    }
+
+    const beforeText = range.lineText.substring(0, range.col.start);
+    const matchText = range.lineText.substring(range.col.start, range.col.end);
+
+    const byteStart = getByteLength(beforeText);
+    const byteEnd = byteStart + getByteLength(matchText);
+
+    return {
+      ...range,
+      col: {
+        start: byteStart,
+        end: byteEnd,
+      },
+    };
+  });
+}
 
 type Command = "undo" | "redo";
 
@@ -25,13 +59,13 @@ const errorHandler = createErrorHandler();
 const commandQueue = createCommandQueue();
 const lockManager = createLockManager();
 let debugMode = false;
-let highlightExecutor: HighlightCommandExecutor;
+let highlightExecutor: ReturnType<typeof createHighlightCommandExecutor>;
 
 const executeCondition = async (
   denops: Denops,
   { command }: { command: Command },
 ): Promise<boolean> => {
-  const undoTree = (await fn.undotree(denops)) as UndoTree;
+  const undoTree = await fn.undotree(denops) as unknown as UndoTree;
   if (
     undoTree.entries.length === 0 ||
     (command === "redo" &&
@@ -129,7 +163,7 @@ export const main = async (denops: Denops): Promise<void> => {
         }
 
         // Initialize the executor
-        highlightExecutor = new HighlightCommandExecutor({
+        highlightExecutor = createHighlightCommandExecutor({
           bufferStates,
           diffOptimizer,
           highlightBatcher,
@@ -171,6 +205,52 @@ export const main = async (denops: Denops): Promise<void> => {
       });
     },
 
+    preExecWithCheck: async (
+      command: unknown,
+      counterCommand: unknown,
+    ): Promise<void> => {
+      if (config == null) {
+        throw new Error("Please call setup() first.");
+      }
+
+      const bufnr = (await fn.bufnr(denops, "%")) as number;
+      let hasRemovals = false;
+
+      // Use lock to prevent concurrent access to buffer state
+      await lockManager.acquire(`buffer-${bufnr}`, async () => {
+        if (!(await executeCondition(denops, { command: command as Command }))) {
+          return;
+        }
+
+        await getPreCodeAndPostCode({
+          denops,
+          command: command as string,
+          counterCommand: counterCommand as string,
+          bufnr,
+        });
+
+        // Check if there will be removals
+        const state = bufferStates.get(bufnr);
+        if (state) {
+          const diffResult = diffOptimizer.calculateDiff(
+            state.preCode,
+            state.postCode,
+            config.threshold,
+          );
+
+          if (diffResult) {
+            hasRemovals = diffResult.changes.some((c) => c.removed);
+            if (debugMode) {
+              console.log(`[highlight-undo] Has removals: ${hasRemovals}`);
+            }
+          }
+        }
+      });
+
+      // Set the result as a Vim global variable
+      await denops.cmd(`let g:highlight_undo_has_removals = ${hasRemovals ? 1 : 0}`);
+    },
+
     exec: async (command: unknown, _counterCommand: unknown): Promise<void> => {
       if (config == null) {
         throw new Error("Please call setup() first.");
@@ -182,6 +262,93 @@ export const main = async (denops: Denops): Promise<void> => {
       await commandQueue.enqueue(bufnr, async () => {
         await highlightExecutor.execute(denops, command as string, bufnr);
       });
+    },
+
+    // Show highlight only (no command execution)
+    showHighlightOnly: async (command: unknown, _counterCommand: unknown): Promise<void> => {
+      if (config == null) {
+        throw new Error("Please call setup() first.");
+      }
+
+      const bufnr = (await fn.bufnr(denops, "%")) as number;
+      const state = bufferStates.get(bufnr);
+
+      if (!state) {
+        if (debugMode) {
+          console.log(`[highlight-undo] No buffer state found for showHighlightOnly`);
+        }
+        return;
+      }
+
+      // Don't clear buffer state yet - Neovim will execute the command later
+
+      const diffResult = diffOptimizer.calculateDiff(
+        state.preCode,
+        state.postCode,
+        config.threshold,
+      );
+
+      if (!diffResult) {
+        return;
+      }
+
+      const { lineInfo } = diffResult;
+      const isUndo = command === "undo";
+
+      // Only show highlights, don't execute command
+      if (isUndo && config.enabled.removed && diffResult.changes.some((c) => c.removed)) {
+        // Show what will be removed
+        await commandQueue.enqueue(bufnr, async () => {
+          const perf = debugMode ? createPerformanceMonitor() : null;
+
+          const removedRanges = computeRanges({
+            changes: diffResult.changes,
+            beforeCode: state.preCode,
+            afterCode: state.postCode,
+            changeType: "removed",
+          });
+
+          const filledRanges = fillRangeGaps({
+            ranges: removedRanges,
+            aboveLine: lineInfo.aboveLine,
+            belowLine: lineInfo.belowLine,
+          });
+
+          if (filledRanges.length > 0) {
+            const convertedRanges = convertRangesWithEncoding(filledRanges);
+            await highlightBatcher.applyHighlights(
+              denops,
+              convertedRanges,
+              nameSpace,
+              config.highlight.removed,
+            );
+
+            // Schedule highlight clearing after duration
+            setTimeout(async () => {
+              try {
+                await highlightBatcher.clearHighlights(denops, nameSpace, bufnr);
+                // Clear buffer state after highlights are cleared
+                bufferStates.clear(bufnr);
+              } catch (error) {
+                console.error(`[highlight-undo] Error clearing highlights:`, error);
+              }
+            }, config.duration);
+          }
+
+          if (perf) {
+            const metrics = perf.end();
+            console.log(`[highlight-undo] Highlight only: ${formatPerformanceMetrics(metrics)}`);
+          }
+        });
+      } else if (!isUndo && config.enabled.added && diffResult.changes.some((c) => c.added)) {
+        // For redo, we would show additions, but since command executes after highlight,
+        // we need to handle this differently
+        // Clear buffer state since we won't use it
+        bufferStates.clear(bufnr);
+      } else {
+        // No highlights to show, clear buffer state
+        bufferStates.clear(bufnr);
+      }
     },
 
     // Buffer cleanup

@@ -104,6 +104,25 @@ The plugin provides commands for runtime control:
 :lua require('highlight-undo').toggle()
 ```
 
+### Debug Commands
+
+Advanced debugging commands for troubleshooting:
+
+```lua
+-- Get performance statistics
+:lua require('highlight-undo').debug.get_stats()
+
+-- Clear all caches
+:lua require('highlight-undo').debug.clear_cache()
+
+-- Enable/disable debug mode at runtime
+:lua require('highlight-undo').debug.enable_debug()
+:lua require('highlight-undo').debug.disable_debug()
+
+-- Show current configuration
+:lua require('highlight-undo').debug.show_config()
+```
+
 ## Advanced Usage
 
 ### Performance Monitoring
@@ -178,13 +197,16 @@ Contributions are welcome! Please feel free to submit issues or pull requests.
 deno task test
 
 # Format code
-deno task fmt
+deno fmt
 
 # Type check
-deno task check
+deno check denops/highlight-undo/main.ts
 
-# Run linter
-deno task lint
+# Format Lua code
+stylua lua/
+
+# Run performance benchmarks
+deno run --allow-all denops/highlight-undo/performance-benchmark.ts
 ```
 
 ## License

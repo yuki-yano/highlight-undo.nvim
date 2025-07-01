@@ -70,13 +70,37 @@ function M.setup(opts)
 end
 
 function M.undo()
-  vim.fn['highlight_undo#request']('preExec', { 'undo', 'redo' })
-  vim.fn['highlight_undo#notify']('exec', { 'undo', 'redo' })
+  -- Prepare buffer states and check if there will be removals
+  vim.fn['highlight_undo#request']('preExecWithCheck', { 'undo', 'redo' })
+
+  -- Check the result stored in global variable
+  local has_removals = vim.g.highlight_undo_has_removals or false
+
+  -- Execute based on whether changes will be removed or added
+  if has_removals then
+    -- Use request (synchronous) for removals to ensure proper timing
+    vim.fn['highlight_undo#request']('exec', { 'undo', 'redo' })
+  else
+    -- Use notify (asynchronous) for additions
+    vim.fn['highlight_undo#notify']('exec', { 'undo', 'redo' })
+  end
 end
 
 function M.redo()
-  vim.fn['highlight_undo#request']('preExec', { 'redo', 'undo' })
-  vim.fn['highlight_undo#notify']('exec', { 'redo', 'undo' })
+  -- Prepare buffer states and check if there will be removals
+  vim.fn['highlight_undo#request']('preExecWithCheck', { 'redo', 'undo' })
+
+  -- Check the result stored in global variable
+  local has_removals = vim.g.highlight_undo_has_removals or false
+
+  -- Execute based on whether changes will be removed or added
+  if has_removals then
+    -- Use request (synchronous) for removals to ensure proper timing
+    vim.fn['highlight_undo#request']('exec', { 'redo', 'undo' })
+  else
+    -- Use notify (asynchronous) for additions
+    vim.fn['highlight_undo#notify']('exec', { 'redo', 'undo' })
+  end
 end
 
 M.enabled = false
@@ -96,8 +120,19 @@ function M.enable()
   end
 
   M.enabled = true
-  vim.keymap.set({ 'n' }, config.mappings.undo, M.undo)
-  vim.keymap.set({ 'n' }, config.mappings.redo, M.redo)
+  -- Use <Cmd> mapping to prevent default behavior
+  vim.keymap.set(
+    'n',
+    config.mappings.undo,
+    '<Cmd>lua require("highlight-undo").undo()<CR>',
+    { noremap = true, silent = true }
+  )
+  vim.keymap.set(
+    'n',
+    config.mappings.redo,
+    '<Cmd>lua require("highlight-undo").redo()<CR>',
+    { noremap = true, silent = true }
+  )
 end
 
 function M.disable()

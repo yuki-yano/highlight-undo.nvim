@@ -44,30 +44,3 @@ export function formatPerformanceMetrics(metrics: PerformanceMetrics): string {
     `diff=${metrics.diffCalculation.toFixed(2)}ms, ` +
     `highlight=${metrics.highlightApplication.toFixed(2)}ms`;
 }
-
-// Backward compatibility
-export class PerformanceMonitor implements IPerformanceMonitor {
-  private monitor: ReturnType<typeof createPerformanceMonitor> | null = null;
-
-  start(): void {
-    this.monitor = createPerformanceMonitor();
-  }
-
-  mark(name: keyof PerformanceMetrics): void {
-    if (!this.monitor) {
-      throw new Error("PerformanceMonitor not started");
-    }
-    this.monitor.mark(name);
-  }
-
-  end(): PerformanceMetrics {
-    if (!this.monitor) {
-      throw new Error("PerformanceMonitor not started");
-    }
-    return this.monitor.end();
-  }
-
-  static format(metrics: PerformanceMetrics): string {
-    return formatPerformanceMetrics(metrics);
-  }
-}

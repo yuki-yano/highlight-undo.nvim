@@ -1,5 +1,5 @@
-import { assertEquals, assertThrows } from "https://deno.land/std@0.173.0/testing/asserts.ts";
-import { describe, it } from "https://deno.land/std@0.173.0/testing/bdd.ts";
+import { assertEquals, assertThrows } from "./deps.ts";
+import { describe, it } from "./deps.ts";
 import { mergeConfig, validateConfig } from "./config.ts";
 import { defaultConfig } from "./config-schema.ts";
 

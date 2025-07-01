@@ -1,6 +1,6 @@
-import { assertEquals } from "https://deno.land/std@0.173.0/testing/asserts.ts";
-import { describe, it } from "https://deno.land/std@0.173.0/testing/bdd.ts";
-import { stub } from "https://deno.land/std@0.173.0/testing/mock.ts";
+import { assertEquals } from "./deps.ts";
+import { describe, it } from "./deps.ts";
+import { stub } from "./deps.ts";
 import type { Denops } from "./deps.ts";
 
 describe("main.ts", () => {

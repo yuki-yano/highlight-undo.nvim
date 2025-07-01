@@ -176,24 +176,3 @@ export function createDiffOptimizer(maxCacheEntries = 100): IDiffOptimizer {
     clearCache,
   };
 }
-
-// Backward compatibility
-export class DiffOptimizer implements IDiffOptimizer {
-  private optimizer: ReturnType<typeof createDiffOptimizer>;
-
-  constructor() {
-    this.optimizer = createDiffOptimizer();
-  }
-
-  calculateDiff(
-    before: string,
-    after: string,
-    threshold: { line: number; char: number },
-  ): DiffResult | null {
-    return this.optimizer.calculateDiff(before, after, threshold);
-  }
-
-  clearCache(): void {
-    this.optimizer.clearCache();
-  }
-}

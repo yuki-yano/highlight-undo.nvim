@@ -2,29 +2,11 @@
 
 import type { Denops } from "./deps.ts";
 
-export enum ErrorLevel {
-  Debug = "debug",
-  Info = "info",
-  Warn = "warn",
-  Error = "error",
-}
-
 export interface ErrorContext {
   bufnr?: number;
   command?: string;
   phase?: string;
   [key: string]: unknown;
-}
-
-export class HighlightUndoError extends Error {
-  constructor(
-    message: string,
-    public readonly context: ErrorContext,
-    public override readonly cause?: Error,
-  ) {
-    super(message);
-    this.name = "HighlightUndoError";
-  }
 }
 
 export interface IErrorHandler {
@@ -35,10 +17,6 @@ export interface IErrorHandler {
     error: unknown,
     context: ErrorContext,
   ): Promise<void>;
-  wrap<T extends unknown[], R>(
-    fn: (...args: T) => Promise<R>,
-    context: Partial<ErrorContext>,
-  ): (...args: T) => Promise<R | null>;
 }
 
 export function createErrorHandler(debugMode = false, logFile?: string): IErrorHandler {
@@ -65,17 +43,11 @@ export function createErrorHandler(debugMode = false, logFile?: string): IErrorH
     error: unknown,
     context: ErrorContext,
   ): Promise<void> {
-    const level = getErrorLevel(error);
     const message = error instanceof Error ? error.message : String(error);
 
     try {
-      if (level === ErrorLevel.Error) {
-        // Show error message to user
-        await denops.call("nvim_err_writeln", `highlight-undo: ${message}`);
-      } else if (level === ErrorLevel.Warn && debug) {
-        // Show warning in debug mode
-        await denops.cmd(`echohl WarningMsg | echo "highlight-undo: ${message}" | echohl None`);
-      }
+      // Show error message to user
+      await denops.call("nvim_err_writeln", `highlight-undo: ${message}`);
 
       // Log detailed info in debug mode
       if (debug && context.phase) {
@@ -107,17 +79,6 @@ export function createErrorHandler(debugMode = false, logFile?: string): IErrorH
     }
   }
 
-  function getErrorLevel(error: unknown): ErrorLevel {
-    if (error instanceof HighlightUndoError) {
-      // Determine level based on error type
-      if (error.message.includes("threshold exceeded")) {
-        return ErrorLevel.Debug;
-      }
-      return ErrorLevel.Error;
-    }
-    return ErrorLevel.Error;
-  }
-
   async function handle(
     denops: Denops,
     error: unknown,
@@ -139,24 +100,6 @@ export function createErrorHandler(debugMode = false, logFile?: string): IErrorH
     }
   }
 
-  function wrap<T extends unknown[], R>(
-    fn: (...args: T) => Promise<R>,
-    context: Partial<ErrorContext> = {},
-  ): (...args: T) => Promise<R | null> {
-    return async (...args: T): Promise<R | null> => {
-      try {
-        return await fn(...args);
-      } catch (error) {
-        const fullContext = { ...context, args };
-        throw new HighlightUndoError(
-          error instanceof Error ? error.message : String(error),
-          fullContext,
-          error instanceof Error ? error : undefined,
-        );
-      }
-    };
-  }
-
   return {
     setDebugMode(enabled: boolean): void {
       debug = enabled;
@@ -167,38 +110,5 @@ export function createErrorHandler(debugMode = false, logFile?: string): IErrorH
     },
 
     handle,
-    wrap,
   };
-}
-
-// Backward compatibility
-export class ErrorHandler implements IErrorHandler {
-  private handler: ReturnType<typeof createErrorHandler>;
-
-  constructor(debugMode: boolean = false, logFile?: string) {
-    this.handler = createErrorHandler(debugMode, logFile);
-  }
-
-  setDebugMode(enabled: boolean): void {
-    this.handler.setDebugMode(enabled);
-  }
-
-  setLogFile(path?: string): void {
-    this.handler.setLogFile(path);
-  }
-
-  handle(
-    denops: Denops,
-    error: unknown,
-    context: ErrorContext,
-  ): Promise<void> {
-    return this.handler.handle(denops, error, context);
-  }
-
-  wrap<T extends unknown[], R>(
-    fn: (...args: T) => Promise<R>,
-    context: Partial<ErrorContext> = {},
-  ): (...args: T) => Promise<R | null> {
-    return this.handler.wrap(fn, context);
-  }
 }

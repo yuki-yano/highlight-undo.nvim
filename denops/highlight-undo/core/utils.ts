@@ -1,19 +1,18 @@
 // utility functions extracted from main.ts for better testability
 
-// Re-export from range-computer for backward compatibility
-export { type ChangeType, computeRanges, type Range } from "./range-computer.ts";
+import type { Range } from "./range-computer.ts";
 
-// fillRangeGaps is still here as it's a separate concern
+// fillRangeGaps function for handling range gaps
 export function fillRangeGaps({
   ranges,
   aboveLine,
   belowLine,
 }: {
-  ranges: ReadonlyArray<import("./range-computer.ts").Range>;
+  ranges: ReadonlyArray<Range>;
   aboveLine: number;
   belowLine: number;
-}): ReadonlyArray<import("./range-computer.ts").Range> {
-  let filledRanges: ReadonlyArray<import("./range-computer.ts").Range> = [];
+}): ReadonlyArray<Range> {
+  let filledRanges: ReadonlyArray<Range> = [];
   for (const range of ranges) {
     if (
       range.lnum > aboveLine &&

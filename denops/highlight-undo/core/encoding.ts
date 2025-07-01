@@ -192,13 +192,3 @@ export function safeSlice(text: string, start: number, end?: number): string {
   const graphemes = splitIntoGraphemes(text);
   return graphemes.slice(start, end).join("");
 }
-
-// Backward compatibility - static class wrapper
-export class EncodingUtil {
-  static jsIndexToVimColumn = jsIndexToVimColumn;
-  static vimColumnToJsIndex = vimColumnToJsIndex;
-  static getByteLength = getByteLength;
-  static getDisplayWidth = getDisplayWidth;
-  static splitIntoGraphemes = splitIntoGraphemes;
-  static safeSlice = safeSlice;
-}

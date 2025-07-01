@@ -1,7 +1,7 @@
 // Batch highlight operations for better performance
 
 import type { Denops } from "../deps.ts";
-import type { Range } from "../core/utils.ts";
+import type { Range } from "../core/range-computer.ts";
 
 export interface IHighlightBatcher {
   applyHighlights(
@@ -24,7 +24,7 @@ export interface IHighlightBatcher {
   ): Promise<void>;
 }
 
-export async function applyHighlights(
+async function applyHighlights(
   denops: Denops,
   ranges: ReadonlyArray<Range>,
   nameSpace: number,
@@ -61,13 +61,15 @@ export async function applyHighlights(
       `require('highlight-undo')._apply_highlights(_A[1], _A[2], _A[3])`,
       [nameSpace, highlightGroup, luaRanges],
     );
+    // Force redraw to ensure highlights are visible
+    await denops.cmd("redraw");
   } catch (error) {
     console.error(`[highlight-undo] Failed to call Lua function:`, error);
     throw error;
   }
 }
 
-export async function clearHighlights(
+async function clearHighlights(
   denops: Denops,
   nameSpace: number,
   bufnr: number = 0,
@@ -85,7 +87,7 @@ export async function clearHighlights(
 }
 
 // Optimized method for large number of highlights
-export async function applyHighlightsBulk(
+async function applyHighlightsBulk(
   denops: Denops,
   addedRanges: ReadonlyArray<Range>,
   removedRanges: ReadonlyArray<Range>,
@@ -112,6 +114,8 @@ export async function applyHighlightsBulk(
         convertRanges(removedRanges),
       ],
     );
+    // Force redraw to ensure highlights are visible
+    await denops.cmd("redraw");
   } catch (error) {
     console.error(`[highlight-undo] Failed to apply bulk highlights:`, error);
     throw error;
@@ -124,34 +128,4 @@ export function createHighlightBatcher(): IHighlightBatcher {
     clearHighlights,
     applyHighlightsBulk,
   };
-}
-
-// Backward compatibility
-export class HighlightBatcher implements IHighlightBatcher {
-  applyHighlights(
-    denops: Denops,
-    ranges: ReadonlyArray<Range>,
-    nameSpace: number,
-    highlightGroup: string,
-  ): Promise<void> {
-    return applyHighlights(denops, ranges, nameSpace, highlightGroup);
-  }
-
-  clearHighlights(
-    denops: Denops,
-    nameSpace: number,
-    bufnr: number = 0,
-  ): Promise<void> {
-    return clearHighlights(denops, nameSpace, bufnr);
-  }
-
-  applyHighlightsBulk(
-    denops: Denops,
-    addedRanges: ReadonlyArray<Range>,
-    removedRanges: ReadonlyArray<Range>,
-    nameSpace: number,
-    config: { added: string; removed: string },
-  ): Promise<void> {
-    return applyHighlightsBulk(denops, addedRanges, removedRanges, nameSpace, config);
-  }
 }

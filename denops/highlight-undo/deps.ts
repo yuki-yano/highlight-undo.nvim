@@ -1,10 +1,15 @@
-export { delay } from "https://deno.land/std@0.173.0/async/mod.ts";
+// External dependencies
+export type { Denops } from "jsr:@denops/std@7.4.0";
+export * as fn from "jsr:@denops/std@7.4.0/function";
 
-export type { Denops } from "https://deno.land/x/denops_std@v4.0.0/mod.ts";
-export * as fn from "https://deno.land/x/denops_std@v4.0.0/function/mod.ts";
+// Testing dependencies
+export { assertEquals, assertExists, assertThrows } from "jsr:@std/assert@1.0.10";
+export { afterEach, beforeEach, describe, it } from "jsr:@std/testing@1.0.7/bdd";
+export { type Stub, stub } from "jsr:@std/testing@1.0.7/mock";
 
-import * as diff from "https://esm.sh/v103/diff@5.1.0/es2022/diff.js";
-import * as Diff from "https://esm.sh/v103/@types/diff@5.0.2/index.d.ts";
+// Diff library
+import * as diff from "https://esm.sh/diff@5.2.0";
+import type * as Diff from "https://esm.sh/@types/diff@5.0.9";
 
 const { diffChars, diffLines } = diff as unknown as typeof Diff;
-export { Diff, diffChars, diffLines };
+export { type Diff, diffChars, diffLines };

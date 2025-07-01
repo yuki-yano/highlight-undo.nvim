@@ -1,11 +1,11 @@
 // deno-lint-ignore-file require-await
-import { assertEquals, assertExists } from "https://deno.land/std@0.173.0/testing/asserts.ts";
-import { describe, it } from "https://deno.land/std@0.173.0/testing/bdd.ts";
+import { assertEquals, assertExists } from "../deps.ts";
+import { describe, it } from "../deps.ts";
 // Removed unused import: createHighlightCommandExecutor
-import { BufferStateManager } from "./buffer-state.ts";
-import { DiffOptimizer } from "../core/diff-optimizer.ts";
-import { HighlightBatcher } from "../infrastructure/highlight-batcher.ts";
-import { ErrorHandler } from "../error-handler.ts";
+import { createBufferStateManager } from "./buffer-state.ts";
+import { createDiffOptimizer } from "../core/diff-optimizer.ts";
+import { createHighlightBatcher } from "../infrastructure/highlight-batcher.ts";
+import { createErrorHandler } from "../error-handler.ts";
 import type { Config } from "../config.ts";
 // Removed unused import: Denops
 
@@ -49,10 +49,10 @@ class MockDenops implements Partial<Denops> {
 
 describe("HighlightCommandExecutor - Core Logic", () => {
   const createMockDeps = () => {
-    const bufferStates = new BufferStateManager();
-    const diffOptimizer = new DiffOptimizer();
-    const highlightBatcher = new HighlightBatcher();
-    const errorHandler = new ErrorHandler();
+    const bufferStates = createBufferStateManager();
+    const diffOptimizer = createDiffOptimizer();
+    const highlightBatcher = createHighlightBatcher();
+    const errorHandler = createErrorHandler();
     const config: Config = {
       duration: 200,
       enabled: { added: true, removed: true },

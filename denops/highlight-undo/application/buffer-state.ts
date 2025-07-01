@@ -94,32 +94,3 @@ export function createBufferStateManager(maxCacheSize = 10 * 1024 * 1024): IBuff
     getStats,
   };
 }
-
-// Export class for backward compatibility
-export class BufferStateManager implements IBufferStateManager {
-  private manager: ReturnType<typeof createBufferStateManager>;
-
-  constructor() {
-    this.manager = createBufferStateManager();
-  }
-
-  set(bufnr: number, preCode: string, postCode: string): void {
-    this.manager.set(bufnr, preCode, postCode);
-  }
-
-  get(bufnr: number): { preCode: string; postCode: string } | null {
-    return this.manager.get(bufnr);
-  }
-
-  clear(bufnr: number): void {
-    this.manager.clear(bufnr);
-  }
-
-  clearAll(): void {
-    this.manager.clearAll();
-  }
-
-  getStats(): { bufferCount: number; cacheSize: number; maxCacheSize: number } {
-    return this.manager.getStats();
-  }
-}

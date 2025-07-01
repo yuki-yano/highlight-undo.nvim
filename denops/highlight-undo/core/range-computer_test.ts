@@ -1,18 +1,17 @@
-import { assertEquals } from "https://deno.land/std@0.173.0/testing/asserts.ts";
-import { describe, it } from "https://deno.land/std@0.173.0/testing/bdd.ts";
-import { RangeComputer } from "./range-computer.ts";
+import { assertEquals } from "../deps.ts";
+import { describe, it } from "../deps.ts";
+import { computeRanges } from "./range-computer.ts";
 import type { Diff } from "../deps.ts";
 
 describe("RangeComputer", () => {
   describe("computeRanges", () => {
     it("should compute ranges for added text", () => {
-      const computer = new RangeComputer();
       const changes: Diff.Change[] = [
         { value: "hello ", count: 6 },
         { value: "world", count: 5, added: true },
       ];
 
-      const ranges = computer.computeRanges({
+      const ranges = computeRanges({
         changes,
         beforeCode: "hello ",
         afterCode: "hello world",
@@ -27,13 +26,12 @@ describe("RangeComputer", () => {
     });
 
     it("should compute ranges for removed text", () => {
-      const computer = new RangeComputer();
       const changes: Diff.Change[] = [
         { value: "hello ", count: 6 },
         { value: "world", count: 5, removed: true },
       ];
 
-      const ranges = computer.computeRanges({
+      const ranges = computeRanges({
         changes,
         beforeCode: "hello world",
         afterCode: "hello ",
@@ -48,14 +46,13 @@ describe("RangeComputer", () => {
     });
 
     it("should handle multi-line additions", () => {
-      const computer = new RangeComputer();
       const changes: Diff.Change[] = [
         { value: "line1\n", count: 6 },
         { value: "line2\nline3\n", count: 12, added: true },
         { value: "line4", count: 5 },
       ];
 
-      const ranges = computer.computeRanges({
+      const ranges = computeRanges({
         changes,
         beforeCode: "line1\nline4",
         afterCode: "line1\nline2\nline3\nline4",
@@ -70,7 +67,6 @@ describe("RangeComputer", () => {
     });
 
     it("should handle complex mixed changes", () => {
-      const computer = new RangeComputer();
       const changes: Diff.Change[] = [
         { value: "start\n", count: 6 },
         { value: "old", count: 3, removed: true },
@@ -78,7 +74,7 @@ describe("RangeComputer", () => {
         { value: "\nend", count: 4 },
       ];
 
-      const addedRanges = computer.computeRanges({
+      const addedRanges = computeRanges({
         changes,
         beforeCode: "start\nold\nend",
         afterCode: "start\nnew\nend",
@@ -89,7 +85,7 @@ describe("RangeComputer", () => {
       assertEquals(addedRanges[0].lnum, 2);
       assertEquals(addedRanges[0].matchText, "new");
 
-      const removedRanges = computer.computeRanges({
+      const removedRanges = computeRanges({
         changes,
         beforeCode: "start\nold\nend",
         afterCode: "start\nnew\nend",
@@ -102,13 +98,12 @@ describe("RangeComputer", () => {
     });
 
     it("should handle additions at the beginning of lines", () => {
-      const computer = new RangeComputer();
       const changes: Diff.Change[] = [
         { value: "  ", count: 2, added: true },
         { value: "hello", count: 5 },
       ];
 
-      const ranges = computer.computeRanges({
+      const ranges = computeRanges({
         changes,
         beforeCode: "hello",
         afterCode: "  hello",
@@ -123,12 +118,11 @@ describe("RangeComputer", () => {
     });
 
     it("should skip empty text in multi-line changes", () => {
-      const computer = new RangeComputer();
       const changes: Diff.Change[] = [
         { value: "line1\n\nline3", count: 13, added: true },
       ];
 
-      const ranges = computer.computeRanges({
+      const ranges = computeRanges({
         changes,
         beforeCode: "",
         afterCode: "line1\n\nline3",
@@ -143,7 +137,6 @@ describe("RangeComputer", () => {
     });
 
     it("should correctly calculate index for added changes", () => {
-      const computer = new RangeComputer();
       const changes: Diff.Change[] = [
         { value: "abc", count: 3 },
         { value: "123", count: 3, removed: true },
@@ -151,7 +144,7 @@ describe("RangeComputer", () => {
         { value: "ghi", count: 3 },
       ];
 
-      const ranges = computer.computeRanges({
+      const ranges = computeRanges({
         changes,
         beforeCode: "abc123ghi",
         afterCode: "abcdefghi",
@@ -165,7 +158,6 @@ describe("RangeComputer", () => {
     });
 
     it("should correctly calculate index for removed changes", () => {
-      const computer = new RangeComputer();
       const changes: Diff.Change[] = [
         { value: "abc", count: 3 },
         { value: "123", count: 3, removed: true },
@@ -173,7 +165,7 @@ describe("RangeComputer", () => {
         { value: "ghi", count: 3 },
       ];
 
-      const ranges = computer.computeRanges({
+      const ranges = computeRanges({
         changes,
         beforeCode: "abc123ghi",
         afterCode: "abcdefghi",

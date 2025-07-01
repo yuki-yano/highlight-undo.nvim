@@ -1,10 +1,10 @@
-import { assertEquals } from "https://deno.land/std@0.173.0/testing/asserts.ts";
-import { describe, it } from "https://deno.land/std@0.173.0/testing/bdd.ts";
-import { DiffOptimizer } from "./diff-optimizer.ts";
+import { assertEquals } from "../deps.ts";
+import { describe, it } from "../deps.ts";
+import { createDiffOptimizer } from "./diff-optimizer.ts";
 
 describe("DiffOptimizer", () => {
   it("should return null for identical strings", () => {
-    const optimizer = new DiffOptimizer();
+    const optimizer = createDiffOptimizer();
     const result = optimizer.calculateDiff(
       "hello world",
       "hello world",
@@ -15,7 +15,7 @@ describe("DiffOptimizer", () => {
   });
 
   it("should return null when threshold exceeded", () => {
-    const optimizer = new DiffOptimizer();
+    const optimizer = createDiffOptimizer();
     const result = optimizer.calculateDiff(
       "a",
       "b".repeat(2000),
@@ -26,7 +26,7 @@ describe("DiffOptimizer", () => {
   });
 
   it("should optimize simple insertions at end", () => {
-    const optimizer = new DiffOptimizer();
+    const optimizer = createDiffOptimizer();
     const result = optimizer.calculateDiff(
       "hello",
       "hello world",
@@ -41,7 +41,7 @@ describe("DiffOptimizer", () => {
   });
 
   it("should optimize simple insertions at beginning", () => {
-    const optimizer = new DiffOptimizer();
+    const optimizer = createDiffOptimizer();
     const result = optimizer.calculateDiff(
       "world",
       "hello world",
@@ -56,7 +56,7 @@ describe("DiffOptimizer", () => {
   });
 
   it("should optimize simple deletions", () => {
-    const optimizer = new DiffOptimizer();
+    const optimizer = createDiffOptimizer();
     const result = optimizer.calculateDiff(
       "hello world",
       "hello",
@@ -71,7 +71,7 @@ describe("DiffOptimizer", () => {
   });
 
   it("should cache results", () => {
-    const optimizer = new DiffOptimizer();
+    const optimizer = createDiffOptimizer();
     const before = "hello";
     const after = "hello world";
 
@@ -94,7 +94,7 @@ describe("DiffOptimizer", () => {
   });
 
   it("should handle complex diffs", () => {
-    const optimizer = new DiffOptimizer();
+    const optimizer = createDiffOptimizer();
     const result = optimizer.calculateDiff(
       "line1\nline2\nline3",
       "line1\nmodified line2\nline3",
@@ -107,7 +107,7 @@ describe("DiffOptimizer", () => {
 
   // Commented out due to accessing private properties
   // it("should evict old cache entries", () => {
-  //   const optimizer = new DiffOptimizer();
+  //   const optimizer = createDiffOptimizer();
   //   // Set max cache to small number for testing
   //   (optimizer as any).maxCacheEntries = 2;
 
@@ -121,7 +121,7 @@ describe("DiffOptimizer", () => {
   // });
 
   it("should clear cache", () => {
-    const optimizer = new DiffOptimizer();
+    const optimizer = createDiffOptimizer();
 
     optimizer.calculateDiff("a", "b", { line: 50, char: 1500 });
     optimizer.calculateDiff("c", "d", { line: 50, char: 1500 });

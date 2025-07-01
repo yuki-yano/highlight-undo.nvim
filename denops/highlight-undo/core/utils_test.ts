@@ -1,7 +1,8 @@
-import { assertEquals } from "https://deno.land/std@0.173.0/testing/asserts.ts";
-import { describe, it } from "https://deno.land/std@0.173.0/testing/bdd.ts";
+import { assertEquals } from "../deps.ts";
+import { describe, it } from "../deps.ts";
 import type { Diff } from "../deps.ts";
-import { computeRanges, fillRangeGaps, type Range } from "./utils.ts";
+import { fillRangeGaps } from "./utils.ts";
+import { computeRanges, type Range } from "./range-computer.ts";
 
 describe("computeRanges", () => {
   it("should compute ranges for simple single-line addition", () => {

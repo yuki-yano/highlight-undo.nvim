@@ -1,12 +1,12 @@
 // deno-lint-ignore-file require-await
-import { assertEquals } from "https://deno.land/std@0.173.0/testing/asserts.ts";
-import { describe, it } from "https://deno.land/std@0.173.0/testing/bdd.ts";
-import { CommandQueue, LockManager } from "./command-queue.ts";
+import { assertEquals } from "../deps.ts";
+import { describe, it } from "../deps.ts";
+import { createCommandQueue, createLockManager } from "./command-queue.ts";
 const delay = (ms: number): Promise<void> => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 describe("CommandQueue", () => {
   it("should execute commands in order", async () => {
-    const queue = new CommandQueue();
+    const queue = createCommandQueue();
     const results: number[] = [];
 
     await queue.enqueue(1, async () => {
@@ -30,7 +30,7 @@ describe("CommandQueue", () => {
   });
 
   it("should handle multiple buffers independently", async () => {
-    const queue = new CommandQueue();
+    const queue = createCommandQueue();
     const results: string[] = [];
 
     // Enqueue commands for different buffers
@@ -63,7 +63,7 @@ describe("CommandQueue", () => {
   });
 
   it("should handle command errors gracefully", async () => {
-    const queue = new CommandQueue();
+    const queue = createCommandQueue();
     const results: number[] = [];
 
     await queue.enqueue(1, async () => {
@@ -86,7 +86,7 @@ describe("CommandQueue", () => {
   });
 
   it("should clear buffer queue", async () => {
-    const queue = new CommandQueue();
+    const queue = createCommandQueue();
     const results: number[] = [];
 
     // Note: Due to the current implementation of processQueue,
@@ -136,7 +136,7 @@ describe("CommandQueue", () => {
 
     // Test clearBuffer prevents future commands
     const results2: number[] = [];
-    const queue2 = new CommandQueue();
+    const queue2 = createCommandQueue();
 
     // Clear the buffer first
     queue2.clearBuffer(2);
@@ -150,7 +150,7 @@ describe("CommandQueue", () => {
   });
 
   it("should provide accurate stats", async () => {
-    const queue = new CommandQueue();
+    const queue = createCommandQueue();
 
     queue.enqueue(1, async () => {
       await delay(20);
@@ -178,7 +178,7 @@ describe("CommandQueue", () => {
 
 describe("LockManager", () => {
   it("should prevent concurrent access", async () => {
-    const lock = new LockManager();
+    const lock = createLockManager();
     const results: string[] = [];
 
     // Start two concurrent operations on the same resource
@@ -201,7 +201,7 @@ describe("LockManager", () => {
   });
 
   it("should allow concurrent access to different resources", async () => {
-    const lock = new LockManager();
+    const lock = createLockManager();
     const results: string[] = [];
 
     const op1 = lock.acquire("resource1", async () => {
@@ -226,7 +226,7 @@ describe("LockManager", () => {
   });
 
   it("should track locked resources", async () => {
-    const lock = new LockManager();
+    const lock = createLockManager();
 
     assertEquals(lock.isLocked("resource1"), false);
 

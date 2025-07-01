@@ -1,10 +1,10 @@
-import { assertEquals } from "https://deno.land/std@0.173.0/testing/asserts.ts";
-import { describe, it } from "https://deno.land/std@0.173.0/testing/bdd.ts";
-import { BufferStateManager } from "./buffer-state.ts";
+import { assertEquals } from "../deps.ts";
+import { describe, it } from "../deps.ts";
+import { createBufferStateManager } from "./buffer-state.ts";
 
 describe("BufferStateManager", () => {
   it("should store and retrieve buffer data", () => {
-    const manager = new BufferStateManager();
+    const manager = createBufferStateManager();
     const bufnr = 1;
     const preCode = "hello world";
     const postCode = "hello beautiful world";
@@ -16,14 +16,14 @@ describe("BufferStateManager", () => {
   });
 
   it("should return null for non-existent buffer", () => {
-    const manager = new BufferStateManager();
+    const manager = createBufferStateManager();
     const result = manager.get(999);
 
     assertEquals(result, null);
   });
 
   it("should clear specific buffer", () => {
-    const manager = new BufferStateManager();
+    const manager = createBufferStateManager();
     manager.set(1, "pre1", "post1");
     manager.set(2, "pre2", "post2");
 
@@ -34,7 +34,7 @@ describe("BufferStateManager", () => {
   });
 
   it("should clear all buffers", () => {
-    const manager = new BufferStateManager();
+    const manager = createBufferStateManager();
     manager.set(1, "pre1", "post1");
     manager.set(2, "pre2", "post2");
 
@@ -45,7 +45,7 @@ describe("BufferStateManager", () => {
   });
 
   it("should track cache size", () => {
-    const manager = new BufferStateManager();
+    const manager = createBufferStateManager();
     const stats1 = manager.getStats();
     assertEquals(stats1.bufferCount, 0);
     assertEquals(stats1.cacheSize, 0);
@@ -62,7 +62,7 @@ describe("BufferStateManager", () => {
   });
 
   it("should track buffer count correctly", () => {
-    const manager = new BufferStateManager();
+    const manager = createBufferStateManager();
 
     assertEquals(manager.getStats().bufferCount, 0);
 

@@ -5,7 +5,8 @@ import type { DiffResult, IDiffOptimizer } from "../core/diff-optimizer.ts";
 import type { IHighlightBatcher } from "../infrastructure/highlight-batcher.ts";
 import type { IErrorHandler } from "../error-handler.ts";
 import { createPerformanceMonitor, formatPerformanceMetrics, type IPerformanceMonitor } from "../performance.ts";
-import { computeRanges, fillRangeGaps, type Range } from "../core/utils.ts";
+import { computeRanges, type Range } from "../core/range-computer.ts";
+import { fillRangeGaps } from "../core/utils.ts";
 import { Diff, fn } from "../deps.ts";
 
 type Command = "undo" | "redo";
@@ -33,7 +34,7 @@ async function checkPreconditions(
   denops: Denops,
   command: Command,
 ): Promise<boolean> {
-  const undoTree = (await fn.undotree(denops)) as {
+  const undoTree = await fn.undotree(denops) as unknown as {
     entries: Array<{ curhead?: number }>;
   };
 
@@ -128,12 +129,7 @@ async function highlight(
   ranges: ReadonlyArray<Range>,
   changeType: "added" | "removed",
   bufnr: number,
-  deps: {
-    highlightBatcher: IHighlightBatcher;
-    errorHandler: IErrorHandler;
-    config: Config;
-    nameSpace: number;
-  },
+  deps: HighlightCommandExecutorDeps,
 ): Promise<void> {
   if (ranges.length === 0) {
     return;
@@ -177,12 +173,7 @@ async function highlightAdditions(
   lineInfo: { aboveLine: number; belowLine: number },
   bufnr: number,
   perf: IPerformanceMonitor | null,
-  deps: {
-    highlightBatcher: IHighlightBatcher;
-    errorHandler: IErrorHandler;
-    config: Config;
-    nameSpace: number;
-  },
+  deps: HighlightCommandExecutorDeps,
 ): Promise<void> {
   const addedRanges = computeRanges({
     changes,
@@ -209,12 +200,7 @@ async function highlightRemovals(
   lineInfo: { aboveLine: number; belowLine: number },
   bufnr: number,
   perf: IPerformanceMonitor | null,
-  deps: {
-    highlightBatcher: IHighlightBatcher;
-    errorHandler: IErrorHandler;
-    config: Config;
-    nameSpace: number;
-  },
+  deps: HighlightCommandExecutorDeps,
 ): Promise<void> {
   const removedRanges = computeRanges({
     changes,
@@ -239,12 +225,7 @@ async function applyHighlights(
   state: { preCode: string; postCode: string },
   bufnr: number,
   perf: IPerformanceMonitor | null,
-  deps: {
-    highlightBatcher: IHighlightBatcher;
-    errorHandler: IErrorHandler;
-    config: Config;
-    nameSpace: number;
-  },
+  deps: HighlightCommandExecutorDeps,
 ): Promise<void> {
   const { changes, lineInfo } = diffResult;
   const hasAdditions = changes.some((change) => change.added);
@@ -282,12 +263,7 @@ async function applyHighlightRanges(
   ranges: ReadonlyArray<Range>,
   changeType: "added" | "removed",
   _bufnr: number,
-  deps: {
-    highlightBatcher: IHighlightBatcher;
-    errorHandler: IErrorHandler;
-    config: Config;
-    nameSpace: number;
-  },
+  deps: HighlightCommandExecutorDeps,
 ): Promise<void> {
   if (ranges.length === 0) {
     return;
@@ -320,12 +296,7 @@ async function applyHighlightsWithDelayedCommand(
   bufnr: number,
   command: string,
   _perf: IPerformanceMonitor | null,
-  deps: {
-    highlightBatcher: IHighlightBatcher;
-    errorHandler: IErrorHandler;
-    config: Config;
-    nameSpace: number;
-  },
+  deps: HighlightCommandExecutorDeps,
 ): Promise<void> {
   const { changes, lineInfo } = diffResult;
 
@@ -338,24 +309,49 @@ async function applyHighlightsWithDelayedCommand(
       changeType: "removed",
     });
 
+    if (deps.debugMode) {
+      console.log(`[highlight-undo] Removed ranges before fillRangeGaps:`, removedRanges);
+    }
+
     const filledRanges = fillRangeGaps({
       ranges: removedRanges,
       aboveLine: lineInfo.aboveLine,
       belowLine: lineInfo.belowLine,
     });
 
+    if (deps.debugMode) {
+      console.log(`[highlight-undo] Filled ranges:`, filledRanges);
+    }
+
     if (filledRanges.length > 0) {
       // Apply highlight to show what will be removed
+      if (deps.debugMode) {
+        console.log(
+          `[highlight-undo] Applying highlight for removal, ranges: ${filledRanges.length}, duration: ${deps.config.duration}ms`,
+        );
+      }
       await applyHighlightRanges(denops, filledRanges, "removed", bufnr, deps);
 
       // Wait for duration
+      if (deps.debugMode) {
+        console.log(`[highlight-undo] Waiting for ${deps.config.duration}ms before executing command`);
+      }
       await new Promise((resolve) => setTimeout(resolve, deps.config.duration));
 
-      // Execute the command and clear highlights simultaneously
-      await Promise.all([
-        denops.cmd(command),
-        deps.highlightBatcher.clearHighlights(denops, deps.nameSpace, bufnr),
-      ]);
+      // Execute the command and clear highlights
+      if (deps.debugMode) {
+        console.log(`[highlight-undo] Executing command: ${command} and clearing highlights`);
+      }
+      try {
+        await denops.cmd(command);
+        await deps.highlightBatcher.clearHighlights(denops, deps.nameSpace, bufnr);
+        if (deps.debugMode) {
+          console.log(`[highlight-undo] Command executed successfully`);
+        }
+      } catch (error) {
+        console.error(`[highlight-undo] Error executing command:`, error);
+        throw error;
+      }
     } else {
       // No removals to highlight, just execute the command
       await denops.cmd(command);
@@ -415,12 +411,18 @@ export function createHighlightCommandExecutor(
         return;
       }
 
-      // For undo showing deletions: highlight first, then execute after duration
-      // For redo showing additions: execute first, then highlight
-      const isUndo = command === "undo";
+      // Check if there are removals (regardless of undo/redo)
+      const hasRemovals = diffResult.changes.some((c) => c.removed);
+      const hasAdditions = diffResult.changes.some((c) => c.added);
 
-      if (isUndo && diffResult.changes.some((c) => c.removed)) {
-        // Show what will be removed, then remove it
+      if (deps.debugMode) {
+        console.log(
+          `[highlight-undo] Command: ${command}, hasRemovals: ${hasRemovals}, hasAdditions: ${hasAdditions}`,
+        );
+      }
+
+      if (hasRemovals) {
+        // For any command with removals: highlight first, then execute after duration
         await applyHighlightsWithDelayedCommand(
           denops,
           diffResult,
@@ -431,7 +433,7 @@ export function createHighlightCommandExecutor(
           deps,
         );
       } else {
-        // Execute command first, then show what was added
+        // For additions only: execute command first, then show what was added
         await denops.cmd(command);
         await applyHighlights(denops, diffResult, state, bufnr, perf, deps);
       }
@@ -450,21 +452,4 @@ export function createHighlightCommandExecutor(
   }
 
   return { execute };
-}
-
-// Backward compatibility
-export class HighlightCommandExecutor implements IHighlightCommandExecutor {
-  private executor: ReturnType<typeof createHighlightCommandExecutor>;
-
-  constructor(private deps: HighlightCommandExecutorDeps) {
-    this.executor = createHighlightCommandExecutor(deps);
-  }
-
-  execute(
-    denops: Denops,
-    command: string,
-    bufnr: number,
-  ): Promise<void> {
-    return this.executor.execute(denops, command, bufnr);
-  }
 }

@@ -1,6 +1,7 @@
 // Performance benchmark script
-import { DiffOptimizer } from "./core/diff-optimizer.ts";
-import { computeRanges, fillRangeGaps } from "./core/utils.ts";
+import { createDiffOptimizer } from "./core/diff-optimizer.ts";
+import { computeRanges } from "./core/range-computer.ts";
+import { fillRangeGaps } from "./core/utils.ts";
 import { diffChars } from "./deps.ts";
 
 function generateLargeText(lines: number, charsPerLine: number): string {
@@ -24,7 +25,7 @@ function benchmark(name: string, fn: () => void, iterations = 1000): void {
 console.log("=== highlight-undo Performance Benchmark ===\n");
 
 // Test 1: DiffOptimizer with cache
-const optimizer = new DiffOptimizer();
+const optimizer = createDiffOptimizer();
 const text1 = generateLargeText(50, 80);
 const text2 = text1 + "\nNew line added";
 

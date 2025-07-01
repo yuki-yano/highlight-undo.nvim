@@ -1,6 +1,6 @@
 // Benchmark script to measure performance improvements
 
-import { DiffOptimizer } from "./core/diff-optimizer.ts";
+import { createDiffOptimizer } from "./core/diff-optimizer.ts";
 import { diffChars } from "./deps.ts";
 
 function generateTestData(size: number): { before: string; after: string } {
@@ -27,7 +27,7 @@ console.log("=== highlight-undo.nvim Performance Benchmark ===\n");
 console.log("Test 1: Small text changes (100 chars)");
 {
   const { before, after } = generateTestData(100);
-  const optimizer = new DiffOptimizer();
+  const optimizer = createDiffOptimizer();
 
   benchmark("Original diff", () => {
     diffChars(before, after);
@@ -48,7 +48,7 @@ console.log("Test 1: Small text changes (100 chars)");
 console.log("\nTest 2: Medium text changes (1000 chars)");
 {
   const { before, after } = generateTestData(1000);
-  const optimizer = new DiffOptimizer();
+  const optimizer = createDiffOptimizer();
 
   benchmark("Original diff", () => {
     diffChars(before, after);
@@ -63,7 +63,7 @@ console.log("\nTest 3: Simple insertions (optimization case)");
 {
   const before = "Hello world";
   const after = "Hello beautiful world";
-  const optimizer = new DiffOptimizer();
+  const optimizer = createDiffOptimizer();
 
   benchmark("Original diff", () => {
     diffChars(before, after);
@@ -77,7 +77,7 @@ console.log("\nTest 3: Simple insertions (optimization case)");
 console.log("\nTest 4: Large text (10000 chars) - threshold test");
 {
   const { before, after } = generateTestData(10000);
-  const optimizer = new DiffOptimizer();
+  const optimizer = createDiffOptimizer();
 
   let originalCount = 0;
   let optimizedCount = 0;
