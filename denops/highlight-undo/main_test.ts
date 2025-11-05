@@ -83,7 +83,7 @@ describe("main.ts", () => {
 
       // Create a mock object with clearHighlights method
       const mockHighlightBatcher = {
-        clearHighlights: (_denops: unknown, _nameSpace: number, _bufnr?: number) => {
+        clearHighlights: (_denops: unknown, _nameSpace: number, _bufnr: number) => {
           assertEquals(_nameSpace, nameSpace);
           assertEquals(_bufnr, bufnr);
           return Promise.resolve();

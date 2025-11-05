@@ -157,9 +157,9 @@ end
 M.debug = require('highlight-undo.debug')
 
 -- Internal function for highlight application (called from TypeScript)
-function M._apply_highlights(namespace, highlight_group, ranges)
+function M._apply_highlights(namespace, highlight_group, bufnr, ranges)
   local highlighter = require('highlight-undo.highlighter')
-  return highlighter.batch_apply_highlights(namespace, highlight_group, ranges)
+  return highlighter.batch_apply_highlights(namespace, highlight_group, bufnr, ranges)
 end
 
 -- Internal function for clearing highlights (called from TypeScript)
@@ -169,9 +169,9 @@ function M._clear_highlights(namespace, bufnr)
 end
 
 -- Internal function for bulk highlight application (called from TypeScript)
-function M._apply_highlights_bulk(namespace, added_hl, removed_hl, added_ranges, removed_ranges)
+function M._apply_highlights_bulk(namespace, added_hl, removed_hl, added_ranges, removed_ranges, bufnr)
   local highlighter = require('highlight-undo.highlighter')
-  return highlighter.apply_highlights_bulk(namespace, added_hl, removed_hl, added_ranges, removed_ranges)
+  return highlighter.apply_highlights_bulk(namespace, added_hl, removed_hl, added_ranges, removed_ranges, bufnr)
 end
 
 return M

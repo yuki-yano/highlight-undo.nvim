@@ -302,16 +302,18 @@ export const main = async (denops: Denops): Promise<void> => {
               convertedRanges,
               nameSpace,
               config.highlight.removed,
+              bufnr,
             );
 
             // Schedule highlight clearing after duration
             setTimeout(async () => {
               try {
                 await highlightBatcher.clearHighlights(denops, nameSpace, bufnr);
-                // Clear buffer state after highlights are cleared
-                bufferStates.clear(bufnr);
               } catch (error) {
                 console.error(`[highlight-undo] Error clearing highlights:`, error);
+              } finally {
+                // Clear buffer state regardless of clear outcome
+                bufferStates.clear(bufnr);
               }
             }, config.duration);
           }

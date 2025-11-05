@@ -9,11 +9,12 @@ export interface IHighlightBatcher {
     ranges: ReadonlyArray<Range>,
     nameSpace: number,
     highlightGroup: string,
+    bufnr: number,
   ): Promise<void>;
   clearHighlights(
     denops: Denops,
     nameSpace: number,
-    bufnr?: number,
+    bufnr: number,
   ): Promise<void>;
   applyHighlightsBulk(
     denops: Denops,
@@ -21,6 +22,7 @@ export interface IHighlightBatcher {
     removedRanges: ReadonlyArray<Range>,
     nameSpace: number,
     config: { added: string; removed: string },
+    bufnr: number,
   ): Promise<void>;
 }
 
@@ -29,6 +31,7 @@ async function applyHighlights(
   ranges: ReadonlyArray<Range>,
   nameSpace: number,
   highlightGroup: string,
+  bufnr: number,
 ): Promise<void> {
   if (ranges.length === 0) {
     return;
@@ -58,8 +61,8 @@ async function applyHighlights(
   try {
     await denops.call(
       "luaeval",
-      `require('highlight-undo')._apply_highlights(_A[1], _A[2], _A[3])`,
-      [nameSpace, highlightGroup, luaRanges],
+      `require('highlight-undo')._apply_highlights(_A[1], _A[2], _A[3], _A[4])`,
+      [nameSpace, highlightGroup, bufnr, luaRanges],
     );
     // Force redraw to ensure highlights are visible
     await denops.cmd("redraw");
@@ -72,7 +75,7 @@ async function applyHighlights(
 async function clearHighlights(
   denops: Denops,
   nameSpace: number,
-  bufnr: number = 0,
+  bufnr: number,
 ): Promise<void> {
   try {
     await denops.call(
@@ -93,6 +96,7 @@ async function applyHighlightsBulk(
   removedRanges: ReadonlyArray<Range>,
   nameSpace: number,
   config: { added: string; removed: string },
+  bufnr: number,
 ): Promise<void> {
   // Convert ranges to Lua-friendly format
   const convertRanges = (ranges: ReadonlyArray<Range>) =>
@@ -105,13 +109,14 @@ async function applyHighlightsBulk(
   try {
     await denops.call(
       "luaeval",
-      `require('highlight-undo')._apply_highlights_bulk(_A[1], _A[2], _A[3], _A[4], _A[5])`,
+      `require('highlight-undo')._apply_highlights_bulk(_A[1], _A[2], _A[3], _A[4], _A[5], _A[6])`,
       [
         nameSpace,
         config.added,
         config.removed,
         convertRanges(addedRanges),
         convertRanges(removedRanges),
+        bufnr,
       ],
     );
     // Force redraw to ensure highlights are visible
