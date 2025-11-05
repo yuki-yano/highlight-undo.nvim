@@ -145,6 +145,7 @@ async function applyHighlightWithoutClear(
   denops: Denops,
   ranges: ReadonlyArray<Range>,
   changeType: "added" | "removed",
+  bufnr: number,
   deps: HighlightCommandExecutorDeps,
 ): Promise<void> {
   if (ranges.length === 0) {
@@ -169,6 +170,7 @@ async function applyHighlightWithoutClear(
       convertedRanges,
       deps.nameSpace,
       highlightGroup,
+      bufnr,
     );
   } catch (error) {
     await deps.errorHandler.handle(denops, error, {
@@ -196,7 +198,7 @@ async function highlight(
 
   try {
     // Apply highlights
-    await applyHighlightWithoutClear(denops, ranges, changeType, deps);
+    await applyHighlightWithoutClear(denops, ranges, changeType, bufnr, deps);
 
     // Wait for the specified duration before clearing highlights
     await new Promise((resolve) => setTimeout(resolve, deps.config.duration));
@@ -359,7 +361,7 @@ async function applyHighlightsWithDelayedCommand(
           `[highlight-undo] Applying highlight for removal, ranges: ${filledRanges.length}, duration: ${deps.config.duration}ms`,
         );
       }
-      await applyHighlightWithoutClear(denops, filledRanges, "removed", deps);
+      await applyHighlightWithoutClear(denops, filledRanges, "removed", bufnr, deps);
 
       // Wait for duration
       if (deps.debugMode) {

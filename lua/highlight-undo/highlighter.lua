@@ -1,21 +1,63 @@
 local M = {}
 
+local function resolve_target_bufnr(bufnr)
+  if bufnr == nil then
+    return 0
+  end
+  if type(bufnr) ~= 'number' then
+    return 0
+  end
+  return bufnr
+end
+
+local function is_buf_valid(bufnr)
+  if bufnr == 0 then
+    return true
+  end
+  local ok, valid = pcall(vim.api.nvim_buf_is_valid, bufnr)
+  return ok and valid
+end
+
+local function safe_set_extmark(bufnr, namespace, row, col, opts)
+  local ok, err = pcall(vim.api.nvim_buf_set_extmark, bufnr, namespace, row, col, opts)
+  if not ok then
+    vim.api.nvim_err_writeln(
+      string.format('highlight-undo: Failed to set extmark at buffer %d line %d: %s', bufnr, row + 1, tostring(err))
+    )
+  end
+end
+
 -- Apply highlights to multiple ranges
 ---@param namespace number
 ---@param highlight_group string
 ---@param ranges table[] Array of {lnum, col_start, col_end}
-function M.apply_highlights(namespace, highlight_group, ranges)
+function M.apply_highlights(namespace, highlight_group, bufnr_or_ranges, maybe_ranges)
+  local bufnr = 0
+  local ranges = maybe_ranges
+  if type(bufnr_or_ranges) == 'table' and ranges == nil then
+    ranges = bufnr_or_ranges
+  else
+    bufnr = bufnr_or_ranges or 0
+  end
+
+  local target_bufnr = resolve_target_bufnr(bufnr)
+  if not is_buf_valid(target_bufnr) then
+    return
+  end
+
   if not ranges or #ranges == 0 then
     return
   end
 
   -- Schedule the highlight application to avoid conflicts with other plugins
   vim.schedule(function()
-    local bufnr = 0 -- current buffer
+    if not is_buf_valid(target_bufnr) then
+      return
+    end
 
     for _, range in ipairs(ranges) do
       -- Get the actual line to check its length
-      local line = vim.api.nvim_buf_get_lines(bufnr, range.lnum - 1, range.lnum, false)[1]
+      local line = vim.api.nvim_buf_get_lines(target_bufnr, range.lnum - 1, range.lnum, false)[1]
       if line then
         -- Ensure columns are within valid range
         -- Neovim's extmark API uses byte indices for columns
@@ -25,25 +67,12 @@ function M.apply_highlights(namespace, highlight_group, ranges)
 
         -- Only apply if range is valid
         if start_col < end_col then
-          local ok, err = pcall(
-            vim.api.nvim_buf_set_extmark,
-            bufnr,
-            namespace,
-            range.lnum - 1, -- 0-indexed row
-            start_col,
-            {
-              end_row = range.lnum - 1,
-              end_col = end_col,
-              hl_group = highlight_group,
-              -- ephemeral = true, -- Remove ephemeral
-            }
-          )
-
-          if not ok then
-            vim.api.nvim_err_writeln(
-              string.format('highlight-undo: Failed to set extmark at line %d: %s', range.lnum, tostring(err))
-            )
-          end
+          safe_set_extmark(target_bufnr, namespace, range.lnum - 1, start_col, {
+            end_row = range.lnum - 1,
+            end_col = end_col,
+            hl_group = highlight_group,
+            -- ephemeral = true, -- Remove ephemeral
+          })
         end
       end
     end
@@ -54,8 +83,14 @@ end
 ---@param namespace number
 ---@param bufnr? number Buffer number (0 for current)
 function M.clear_highlights(namespace, bufnr)
-  bufnr = bufnr or 0
+  bufnr = resolve_target_bufnr(bufnr)
+  if not is_buf_valid(bufnr) then
+    return
+  end
   vim.schedule(function()
+    if not is_buf_valid(bufnr) then
+      return
+    end
     vim.api.nvim_buf_clear_namespace(bufnr, namespace, 0, -1)
   end)
 end
@@ -65,14 +100,25 @@ end
 ---@param highlight_group string
 ---@param ranges table[] Array of ranges
 ---@return boolean success
-function M.batch_apply_highlights(namespace, highlight_group, ranges)
+function M.batch_apply_highlights(namespace, highlight_group, bufnr_or_ranges, maybe_ranges)
+  local ranges = maybe_ranges
+  local bufnr = bufnr_or_ranges
+  if type(bufnr_or_ranges) == 'table' and ranges == nil then
+    ranges = bufnr_or_ranges
+    bufnr = 0
+  end
+
+  local target_bufnr = resolve_target_bufnr(bufnr)
+  if not is_buf_valid(target_bufnr) then
+    return true
+  end
   if not ranges or #ranges == 0 then
     return true
   end
 
   -- Apply highlights immediately without scheduling
   -- Clear existing highlights in the namespace before applying new ones
-  vim.api.nvim_buf_clear_namespace(0, namespace, 0, -1)
+  vim.api.nvim_buf_clear_namespace(target_bufnr, namespace, 0, -1)
 
   -- Check if highlight group exists and get its properties
   local hl_exists = vim.fn.hlexists(highlight_group) == 1
@@ -156,7 +202,7 @@ function M.batch_apply_highlights(namespace, highlight_group, ranges)
         -- end
 
         -- Get the actual line to check its length
-        local line = vim.api.nvim_buf_get_lines(0, range.lnum - 1, range.lnum, false)[1]
+        local line = vim.api.nvim_buf_get_lines(target_bufnr, range.lnum - 1, range.lnum, false)[1]
         if line then
           -- Ensure columns are within valid range
           -- Neovim's extmark API uses byte indices for columns
@@ -170,14 +216,14 @@ function M.batch_apply_highlights(namespace, highlight_group, ranges)
             if start_col == 0 and end_col == 0 then
               -- For deleted lines, we'll use a special marker at the beginning of the line
               -- This will show where the line was deleted
-              local mark_id = vim.api.nvim_buf_set_extmark(0, namespace, range.lnum - 1, 0, {
+              safe_set_extmark(target_bufnr, namespace, range.lnum - 1, 0, {
                 virt_text = { { ' ', highlight_group } },
                 virt_text_pos = 'overlay',
                 hl_mode = 'combine',
               })
             else
               -- Normal highlight for text within a line
-              local mark_id = vim.api.nvim_buf_set_extmark(0, namespace, range.lnum - 1, start_col, {
+              safe_set_extmark(target_bufnr, namespace, range.lnum - 1, start_col, {
                 end_row = range.lnum - 1,
                 end_col = end_col,
                 hl_group = highlight_group,
@@ -201,13 +247,18 @@ end
 ---@param removed_hl string
 ---@param added_ranges table[] Array of {row, col_start, col_end}
 ---@param removed_ranges table[] Array of {row, col_start, col_end}
-function M.apply_highlights_bulk(namespace, added_hl, removed_hl, added_ranges, removed_ranges)
+function M.apply_highlights_bulk(namespace, added_hl, removed_hl, added_ranges, removed_ranges, bufnr)
+  local target_bufnr = resolve_target_bufnr(bufnr)
+  if not is_buf_valid(target_bufnr) then
+    return
+  end
+
   -- Clear existing highlights
-  vim.api.nvim_buf_clear_namespace(0, namespace, 0, -1)
+  vim.api.nvim_buf_clear_namespace(target_bufnr, namespace, 0, -1)
 
   -- Apply added highlights
   for _, range in ipairs(added_ranges) do
-    vim.api.nvim_buf_set_extmark(0, namespace, range.row, range.col_start, {
+    safe_set_extmark(target_bufnr, namespace, range.row, range.col_start, {
       end_row = range.row,
       end_col = range.col_end,
       hl_group = added_hl,
@@ -217,7 +268,7 @@ function M.apply_highlights_bulk(namespace, added_hl, removed_hl, added_ranges, 
 
   -- Apply removed highlights
   for _, range in ipairs(removed_ranges) do
-    vim.api.nvim_buf_set_extmark(0, namespace, range.row, range.col_start, {
+    safe_set_extmark(target_bufnr, namespace, range.row, range.col_start, {
       end_row = range.row,
       end_col = range.col_end,
       hl_group = removed_hl,
